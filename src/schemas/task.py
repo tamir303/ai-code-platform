@@ -2,8 +2,8 @@ from pydantic import BaseModel, Field
 
 
 class CodeFilePayload(BaseModel):
-    filename: str = Field(..., example="auth.py")
-    code: str = Field(..., example="def login(): pass")
+    filename: str = Field(..., examples=["auth.py"])
+    code: str = Field(..., examples=["def login(): pass"])
 
 
 class CodeReviewRequest(BaseModel):

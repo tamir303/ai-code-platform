@@ -1,0 +1,127 @@
+"""
+Unit tests for Pydantic schemas validation.
+"""
+import uuid
+
+import pytest
+from pydantic import ValidationError
+
+from src.schemas.chat import ChatRequest, ChatChunkResponse
+from src.schemas.task import CodeFilePayload, CodeReviewRequest, TaskStatusResponse
+from src.schemas.user import UserCreateRequest, UserResponse
+from src.schemas.session import MessageItem, SessionResponse, SessionDetailResponse
+
+
+pytestmark = pytest.mark.unit
+
+
+# ---------------------------------------------------------------------------
+# ChatRequest
+# ---------------------------------------------------------------------------
+class TestChatRequest:
+    def test_valid_without_session_id(self):
+        req = ChatRequest(message="Hello AI")
+        assert req.message == "Hello AI"
+        assert req.session_id is None
+
+    def test_valid_with_session_id(self):
+        sid = uuid.uuid4()
+        req = ChatRequest(message="Hello", session_id=sid)
+        assert req.session_id == sid
+
+    def test_missing_message_raises(self):
+        with pytest.raises(ValidationError):
+            ChatRequest()
+
+
+class TestChatChunkResponse:
+    def test_valid(self):
+        sid = uuid.uuid4()
+        chunk = ChatChunkResponse(session_id=sid, content="hello")
+        assert chunk.is_done is False
+
+    def test_done_flag(self):
+        sid = uuid.uuid4()
+        chunk = ChatChunkResponse(session_id=sid, content="", is_done=True)
+        assert chunk.is_done is True
+
+
+# ---------------------------------------------------------------------------
+# CodeFilePayload / CodeReviewRequest
+# ---------------------------------------------------------------------------
+class TestCodeFilePayload:
+    def test_valid(self):
+        payload = CodeFilePayload(filename="main.py", code="print('hi')")
+        assert payload.filename == "main.py"
+
+    def test_missing_filename_raises(self):
+        with pytest.raises(ValidationError):
+            CodeFilePayload(code="pass")
+
+    def test_missing_code_raises(self):
+        with pytest.raises(ValidationError):
+            CodeFilePayload(filename="a.py")
+
+
+class TestCodeReviewRequest:
+    def test_valid_with_files(self):
+        req = CodeReviewRequest(
+            files=[CodeFilePayload(filename="a.py", code="pass")]
+        )
+        assert len(req.files) == 1
+
+    def test_empty_files_list(self):
+        req = CodeReviewRequest(files=[])
+        assert req.files == []
+
+
+# ---------------------------------------------------------------------------
+# UserCreateRequest / UserResponse
+# ---------------------------------------------------------------------------
+class TestUserCreateRequest:
+    def test_valid(self):
+        req = UserCreateRequest(username="alice")
+        assert req.username == "alice"
+
+    def test_missing_username_raises(self):
+        with pytest.raises(ValidationError):
+            UserCreateRequest()
+
+
+class TestUserResponse:
+    def test_valid(self):
+        uid = uuid.uuid4()
+        resp = UserResponse(id=uid, username="bob", api_key="sk-abc")
+        assert resp.id == uid
+
+
+# ---------------------------------------------------------------------------
+# TaskStatusResponse
+# ---------------------------------------------------------------------------
+class TestTaskStatusResponse:
+    def test_without_result(self):
+        resp = TaskStatusResponse(task_id="t-1", status="PENDING")
+        assert resp.result is None
+
+    def test_with_result(self):
+        resp = TaskStatusResponse(
+            task_id="t-1", status="SUCCESS", result={"files_analyzed": []}
+        )
+        assert resp.result == {"files_analyzed": []}
+
+
+# ---------------------------------------------------------------------------
+# Session schemas
+# ---------------------------------------------------------------------------
+class TestSessionSchemas:
+    def test_session_response(self):
+        from datetime import datetime, UTC
+        now = datetime.now(UTC)
+        resp = SessionResponse(id=uuid.uuid4(), title="Test", created_at=now, updated_at=now)
+        assert resp.title == "Test"
+
+    def test_session_detail_response_default_messages(self):
+        from datetime import datetime, UTC
+        now = datetime.now(UTC)
+        resp = SessionDetailResponse(id=uuid.uuid4(), title="Test", created_at=now, updated_at=now)
+        assert resp.messages == []
