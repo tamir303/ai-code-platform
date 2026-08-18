@@ -1,0 +1,20 @@
+model_list:
+  - model_name: qwen-coder
+    litellm_params:
+      model: hosted_vllm/qwen-coder
+      api_base: http://vllm:8000/v1
+      api_key: "none"
+
+general_settings:
+  master_key: "os.environ/LITELLM_MASTER_KEY"
+  database_url: "os.environ/DATABASE_URL"
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false
+  cache: true
+  cache_type: "redis"
+  cache_host: "redis"
+  cache_port: 6379
+  success_callback: ["prometheus"]
+  failure_callback: ["prometheus"]

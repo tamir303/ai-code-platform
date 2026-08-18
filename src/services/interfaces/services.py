@@ -1,0 +1,40 @@
+from abc import ABC, abstractmethod
+from typing import AsyncGenerator
+from uuid import UUID
+from src.schemas.chat import ChatRequest
+from src.schemas.session import SessionResponse, SessionDetailResponse
+from src.schemas.task import CodeReviewRequest, TaskStatusResponse
+from src.schemas.user import UserResponse
+from src.models.entities import UserEntity
+
+
+class IAuthService(ABC):
+    @abstractmethod
+    async def authenticate_key(self, api_key: str) -> UserEntity: ...
+    @abstractmethod
+    async def provision_user(self, username: str) -> UserResponse: ...
+    @abstractmethod
+    async def get_current_user(self, user: UserEntity) -> UserResponse: ...
+
+
+class ISessionService(ABC):
+    @abstractmethod
+    async def list_user_sessions(self, user_id: UUID) -> list[SessionResponse]: ...
+    @abstractmethod
+    async def get_session_detail(self, session_id: UUID, user_id: UUID) -> SessionDetailResponse: ...
+    @abstractmethod
+    async def delete_session(self, session_id: UUID, user_id: UUID) -> None: ...
+
+
+class IChatService(ABC):
+    @abstractmethod
+    async def stream_chat_response(
+        self, request: ChatRequest, user: UserEntity
+    ) -> AsyncGenerator[str, None]: ...
+
+
+class ITaskService(ABC):
+    @abstractmethod
+    async def enqueue_code_review(self, request: CodeReviewRequest, user: UserEntity) -> TaskStatusResponse: ...
+    @abstractmethod
+    async def get_task_status(self, task_id: str, user_id: UUID) -> TaskStatusResponse: ...

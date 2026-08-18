@@ -1,0 +1,140 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: prod-vllm-engine
+    runtime: nvidia
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${GPU_COUNT:-all}
+              capabilities: [ gpu ]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-all}
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - CUDA_DEVICE_ORDER=PCI_BUS_ID
+      - NCCL_P2P_DISABLE=0
+      - HF_ENDPOINT=${HF_ENDPOINT}
+      - HF_TOKEN=${HF_TOKEN}
+      - VLLM_NO_USAGE_STATS=1
+    volumes:
+      - /opt/models/hf_cache:/root/.cache/huggingface
+    command: >
+      --model ${VLLM_MODEL:-Qwen/Qwen2.5-Coder-7B-Instruct}
+      --served-model-name qwen-coder
+      --gpu-memory-utilization ${VLLM_GPU_MEM_UTIL:-0.92}
+      --max-model-len ${VLLM_MAX_MODEL_LEN:-16384}
+      --port 8000
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+    restart: always
+
+  redis:
+    image: redis/redis-stack-server:latest
+    container_name: prod-redis
+    volumes:
+      - /opt/data/redis:/data
+    restart: always
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: prod-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - /opt/data/postgres:/var/lib/postgresql/data
+    restart: always
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: prod-litellm-proxy
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+    command: [ "--config", "/app/config.yaml", "--port", "4000" ]
+    depends_on:
+      vllm:
+        condition: service_healthy
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+    restart: always
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prod-backend-api
+    env_file: .env.prod
+    environment:
+      - APP_ENV=prod
+    depends_on:
+      - postgres
+      - redis
+      - litellm
+    restart: always
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prod-celery-worker
+    command: celery -A src.worker.celery_app.celery_app worker --loglevel=info -c 8
+    env_file: .env.prod
+    environment:
+      - APP_ENV=prod
+    depends_on:
+      - redis
+      - postgres
+      - litellm
+    restart: always
+
+  prometheus:
+    image: prom/prometheus:v2.54.0
+    container_name: prod-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /opt/data/prometheus:/prometheus
+    restart: always
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: prod-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-strong_grafana_password}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=https://${NGINX_HOST}/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    volumes:
+      - /opt/data/grafana:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: always
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: prod-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/templates/default.conf.template:ro
+      - /opt/certs:/etc/nginx/certs:ro
+    environment:
+      - NGINX_HOST=${NGINX_HOST:-localhost}
+    depends_on:
+      - backend
+      - litellm
+      - grafana
+    restart: always
