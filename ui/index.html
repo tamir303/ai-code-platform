@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Code Platform — Dev Playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-primary: #0a0e17;
+  --bg-secondary: #111827;
+  --bg-card: #1a2235;
+  --bg-input: #0f1629;
+  --bg-hover: #243049;
+  --border: #1e2d4a;
+  --border-focus: #3b82f6;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #3b82f6;
+  --accent-glow: rgba(59, 130, 246, 0.15);
+  --accent-hover: #2563eb;
+  --success: #22c55e;
+  --error: #ef4444;
+  --warning: #f59e0b;
+  --code-bg: #0d1117;
+  --user-bubble: #1e3a5f;
+  --assistant-bubble: #1a2235;
+  --scrollbar-track: #111827;
+  --scrollbar-thumb: #2d3f5e;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* ── Layout ── */
+.app {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100vh;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-header h1 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  background: linear-gradient(135deg, #60a5fa, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.sidebar-header .env-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--success);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* API Key Input */
+.api-key-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.api-key-section label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.api-key-input-wrap {
+  position: relative;
+}
+
+.api-key-input-wrap input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  transition: border-color 0.2s;
+}
+
+.api-key-input-wrap input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.api-key-status {
+  margin-top: 6px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.api-key-status .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.api-key-status.connected .dot { background: var(--success); }
+.api-key-status.connected { color: var(--success); }
+.api-key-status.error .dot { background: var(--error); }
+.api-key-status.error { color: var(--error); }
+
+/* New Chat Button */
+.new-chat-btn {
+  margin: 16px 20px 8px;
+  padding: 10px;
+  background: linear-gradient(135deg, var(--accent), #6366f1);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.new-chat-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+}
+
+/* Session List */
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.session-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 2px;
+}
+
+.session-item:hover { background: var(--bg-hover); }
+
+.session-item.active {
+  background: var(--accent-glow);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.session-item .title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-item .meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.session-item .delete-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--error);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  float: right;
+}
+
+.session-item:hover .delete-btn { display: inline-block; }
+.session-item .delete-btn:hover { background: rgba(239, 68, 68, 0.1); }
+
+/* ── Main Chat Area ── */
+.main {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.chat-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-secondary);
+}
+
+.chat-header .model-tag {
+  padding: 3px 10px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #a78bfa;
+}
+
+.chat-header .stream-indicator {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-header .stream-indicator.streaming { color: var(--success); }
+
+.chat-header .stream-indicator .pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.chat-header .stream-indicator.streaming .pulse {
+  background: var(--success);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+/* Messages Area */
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.messages::-webkit-scrollbar { width: 6px; }
+.messages::-webkit-scrollbar-track { background: transparent; }
+.messages::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+.message {
+  max-width: 85%;
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.65;
+  animation: fadeIn 0.25s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.message.user {
+  align-self: flex-end;
+  background: var(--user-bubble);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-bottom-right-radius: 4px;
+}
+
+.message.assistant {
+  align-self: flex-start;
+  background: var(--assistant-bubble);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+
+.message .role-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+}
+
+.message.user .role-label { color: #60a5fa; }
+.message.assistant .role-label { color: #a78bfa; }
+
+.message .content { white-space: pre-wrap; word-break: break-word; }
+
+/* Code blocks inside messages */
+.message .content code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.message .content pre {
+  margin: 10px 0;
+  padding: 14px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.message .content pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* Empty state */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  gap: 12px;
+}
+
+.empty-state .icon {
+  font-size: 48px;
+  opacity: 0.3;
+}
+
+.empty-state p {
+  font-size: 14px;
+  max-width: 360px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* Typing indicator */
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.typing-indicator span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: bounce 1.4s ease-in-out infinite;
+}
+
+.typing-indicator span:nth-child(2) { animation-delay: 0.16s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* ── Input Area ── */
+.input-area {
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.input-wrap {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.input-wrap textarea {
+  flex: 1;
+  padding: 12px 16px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  min-height: 44px;
+  max-height: 200px;
+  transition: border-color 0.2s;
+}
+
+.input-wrap textarea:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.input-wrap textarea::placeholder { color: var(--text-muted); }
+
+.send-btn {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), #6366f1);
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.send-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.35);
+}
+
+.send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.input-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* ── Toast Notification ── */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: white;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast.error { background: var(--error); }
+.toast.success { background: var(--success); }
+.toast.warning { background: var(--warning); color: #1a1a1a; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h1>AI Code Platform</h1>
+      <span class="env-badge">Dev Playground</span>
+    </div>
+
+    <div class="api-key-section">
+      <label>API Key</label>
+      <div class="api-key-input-wrap">
+        <input type="password" id="apiKey" placeholder="sk-..." spellcheck="false" autocomplete="off">
+      </div>
+      <div class="api-key-status" id="keyStatus">
+        <span class="dot"></span>
+        <span>Enter your API key</span>
+      </div>
+    </div>
+
+    <button class="new-chat-btn" id="newChatBtn" onclick="newChat()">
+      <span>＋</span> New Chat
+    </button>
+
+    <div class="session-list" id="sessionList"></div>
+  </aside>
+
+  <!-- Main Chat -->
+  <main class="main">
+    <div class="chat-header">
+      <span id="chatTitle">New Conversation</span>
+      <span class="model-tag">qwen-coder</span>
+      <div class="stream-indicator" id="streamIndicator">
+        <span class="pulse"></span>
+        <span>Ready</span>
+      </div>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="empty-state" id="emptyState">
+        <div class="icon">⚡</div>
+        <p>Start a conversation with the AI coding assistant. Ask questions, write code, debug, or request reviews.</p>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-wrap">
+        <textarea id="chatInput" placeholder="Ask anything about code…" rows="1"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>➤</button>
+      </div>
+      <div class="input-hint">Press <b>Enter</b> to send · <b>Shift + Enter</b> for newline</div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──
+const BASE = '';  // relative to nginx
+let currentSessionId = null;
+let isStreaming = false;
+let sessions = [];
+
+// ── DOM Refs ──
+const apiKeyInput     = document.getElementById('apiKey');
+const keyStatus       = document.getElementById('keyStatus');
+const sessionList     = document.getElementById('sessionList');
+const messagesDiv     = document.getElementById('messages');
+const emptyState      = document.getElementById('emptyState');
+const chatInput       = document.getElementById('chatInput');
+const sendBtn         = document.getElementById('sendBtn');
+const chatTitle       = document.getElementById('chatTitle');
+const streamIndicator = document.getElementById('streamIndicator');
+const toast           = document.getElementById('toast');
+
+// ── API Key ──
+apiKeyInput.addEventListener('input', () => {
+  const key = apiKeyInput.value.trim();
+  localStorage.setItem('ai_api_key', key);
+  sendBtn.disabled = !key;
+  if (key.length > 5) {
+    verifyKey(key);
+  } else {
+    keyStatus.className = 'api-key-status';
+    keyStatus.innerHTML = '<span class="dot"></span><span>Enter your API key</span>';
+  }
+});
+
+// Load saved key
+const savedKey = localStorage.getItem('ai_api_key');
+if (savedKey) {
+  apiKeyInput.value = savedKey;
+  sendBtn.disabled = false;
+  verifyKey(savedKey);
+}
+
+async function verifyKey(key) {
+  try {
+    const res = await fetch(`${BASE}/api/v1/auth/me`, {
+      headers: { 'X-API-Key': key }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      keyStatus.className = 'api-key-status connected';
+      keyStatus.innerHTML = `<span class="dot"></span><span>Connected as <b>${data.username}</b></span>`;
+      loadSessions();
+    } else {
+      keyStatus.className = 'api-key-status error';
+      keyStatus.innerHTML = '<span class="dot"></span><span>Invalid key</span>';
+    }
+  } catch (e) {
+    keyStatus.className = 'api-key-status error';
+    keyStatus.innerHTML = '<span class="dot"></span><span>Cannot reach API</span>';
+  }
+}
+
+// ── Sessions ──
+async function loadSessions() {
+  try {
+    const res = await fetch(`${BASE}/api/v1/sessions`, {
+      headers: { 'X-API-Key': apiKeyInput.value.trim() }
+    });
+    if (res.ok) {
+      sessions = await res.json();
+      renderSessions();
+    }
+  } catch (e) { /* silent */ }
+}
+
+function renderSessions() {
+  sessionList.innerHTML = sessions.map(s => `
+    <div class="session-item ${s.id === currentSessionId ? 'active' : ''}" onclick="selectSession('${s.id}')">
+      <button class="delete-btn" onclick="event.stopPropagation(); deleteSession('${s.id}')" title="Delete">✕</button>
+      <div class="title">${escapeHtml(s.title)}</div>
+      <div class="meta">${formatDate(s.updated_at)}</div>
+    </div>
+  `).join('');
+}
+
+async function selectSession(id) {
+  currentSessionId = id;
+  renderSessions();
+  try {
+    const res = await fetch(`${BASE}/api/v1/sessions/${id}`, {
+      headers: { 'X-API-Key': apiKeyInput.value.trim() }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      chatTitle.textContent = data.title;
+      messagesDiv.innerHTML = '';
+      emptyState.style.display = 'none';
+      data.messages.forEach(m => appendMessage(m.role, m.content));
+      scrollToBottom();
+    }
+  } catch (e) {
+    showToast('Failed to load session', 'error');
+  }
+}
+
+async function deleteSession(id) {
+  try {
+    await fetch(`${BASE}/api/v1/sessions/${id}`, {
+      method: 'DELETE',
+      headers: { 'X-API-Key': apiKeyInput.value.trim() }
+    });
+    if (id === currentSessionId) {
+      currentSessionId = null;
+      messagesDiv.innerHTML = '';
+      emptyState.style.display = '';
+      messagesDiv.appendChild(emptyState);
+      chatTitle.textContent = 'New Conversation';
+    }
+    await loadSessions();
+    showToast('Session deleted', 'success');
+  } catch (e) {
+    showToast('Failed to delete session', 'error');
+  }
+}
+
+function newChat() {
+  currentSessionId = null;
+  messagesDiv.innerHTML = '';
+  emptyState.style.display = '';
+  messagesDiv.appendChild(emptyState);
+  chatTitle.textContent = 'New Conversation';
+  renderSessions();
+  chatInput.focus();
+}
+
+// ── Chat ──
+async function sendMessage() {
+  const message = chatInput.value.trim();
+  const key = apiKeyInput.value.trim();
+  if (!message || !key || isStreaming) return;
+
+  // Clear empty state & show user message
+  emptyState.style.display = 'none';
+  appendMessage('user', message);
+  chatInput.value = '';
+  autoResize(chatInput);
+
+  // Show streaming state
+  isStreaming = true;
+  sendBtn.disabled = true;
+  streamIndicator.className = 'stream-indicator streaming';
+  streamIndicator.querySelector('span:last-child').textContent = 'Streaming…';
+
+  // Create assistant bubble with typing indicator
+  const assistantEl = appendMessage('assistant', '');
+  const contentEl = assistantEl.querySelector('.content');
+  contentEl.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+
+  let fullContent = '';
+
+  try {
+    const res = await fetch(`${BASE}/api/v1/chat`, {
+      method: 'POST',
+      headers: {
+        'X-API-Key': key,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message,
+        session_id: currentSessionId
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Request failed' }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const jsonStr = line.slice(6).trim();
+        if (!jsonStr) continue;
+
+        try {
+          const chunk = JSON.parse(jsonStr);
+
+          // Capture session ID from first chunk
+          if (chunk.session_id && !currentSessionId) {
+            currentSessionId = chunk.session_id;
+          }
+
+          if (chunk.content) {
+            fullContent += chunk.content;
+            contentEl.innerHTML = renderMarkdown(fullContent);
+            scrollToBottom();
+          }
+
+          if (chunk.is_done) {
+            if (!fullContent) contentEl.textContent = '(empty response)';
+            // Update title from first user message
+            const firstWords = message.substring(0, 50);
+            chatTitle.textContent = firstWords + (message.length > 50 ? '…' : '');
+          }
+        } catch (parseErr) { /* skip malformed chunks */ }
+      }
+    }
+  } catch (e) {
+    contentEl.textContent = `Error: ${e.message}`;
+    assistantEl.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+    showToast(e.message, 'error');
+  } finally {
+    isStreaming = false;
+    sendBtn.disabled = !apiKeyInput.value.trim();
+    streamIndicator.className = 'stream-indicator';
+    streamIndicator.querySelector('span:last-child').textContent = 'Ready';
+    loadSessions();
+  }
+}
+
+// ── Message Rendering ──
+function appendMessage(role, content) {
+  const el = document.createElement('div');
+  el.className = `message ${role}`;
+  el.innerHTML = `
+    <div class="role-label">${role === 'user' ? '⬤ You' : '◆ Assistant'}</div>
+    <div class="content">${content ? renderMarkdown(content) : ''}</div>
+  `;
+  messagesDiv.appendChild(el);
+  scrollToBottom();
+  return el;
+}
+
+function renderMarkdown(text) {
+  // Code blocks: ```lang\n...\n```
+  text = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    return `<pre><code class="language-${lang || 'text'}">${escapeHtml(code.trim())}</code></pre>`;
+  });
+  // Inline code
+  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Bold
+  text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Italic
+  text = text.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+  // Headers
+  text = text.replace(/^### (.+)$/gm, '<strong style="font-size:15px">$1</strong>');
+  text = text.replace(/^## (.+)$/gm, '<strong style="font-size:16px">$1</strong>');
+  // Bullet points
+  text = text.replace(/^- (.+)$/gm, '• $1');
+  return text;
+}
+
+// ── Utilities ──
+function scrollToBottom() {
+  requestAnimationFrame(() => {
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  });
+}
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return 'Just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function showToast(msg, type = 'error') {
+  toast.textContent = msg;
+  toast.className = `toast ${type} show`;
+  setTimeout(() => toast.className = `toast ${type}`, 3000);
+}
+
+// ── Textarea Auto-resize & Keyboard ──
+chatInput.addEventListener('input', () => autoResize(chatInput));
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+}
+</script>
+</body>
+</html>

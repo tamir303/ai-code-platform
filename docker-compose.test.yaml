@@ -1,0 +1,57 @@
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: test-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres_test}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_test_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-code_assistant_test_db}
+    ports:
+      - "${TEST_POSTGRES_PORT:-5433}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres_test} -d ${POSTGRES_DB:-code_assistant_test_db}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  redis-test:
+    image: redis/redis-stack-server:latest
+    container_name: test-redis
+    ports:
+      - "${TEST_REDIS_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: test-runner
+    env_file: .env.test
+    environment:
+      - APP_ENV=test
+      - POSTGRES_HOST=postgres-test
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres_test
+      - POSTGRES_PASSWORD=postgres_test_secret
+      - POSTGRES_DB=code_assistant_test_db
+      - REDIS_HOST=redis-test
+      - REDIS_PORT=6379
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./pytest.ini:/app/pytest.ini
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    command: ["pytest", "tests/", "-v", "--cov=src", "--cov-report=term-missing"]
