@@ -16,6 +16,15 @@ RUN git clone --depth 1 --branch ${VLLM_VERSION} https://github.com/vllm-project
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -v -r requirements-cpu.txt --extra-index-url https://download.pytorch.org/whl/cpu
 
+# Build-system dependencies for vLLM's setup.py. Required because
+# --no-build-isolation makes pip skip [build-system].requires entirely, so
+# setup.py fails with ModuleNotFoundError: No module named 'setuptools_scm'.
+# This mirrors requirements-build.txt from vLLM's own Dockerfile.cpu, minus
+# torch — already installed as the +cpu build above, and re-resolving it here
+# risks pulling the ~900MB CUDA wheel from the default index.
+RUN pip install --no-cache-dir \
+    "cmake>=3.26" ninja packaging "setuptools>=61" "setuptools-scm>=8" wheel jinja2
+
 ENV VLLM_TARGET_DEVICE=cpu
 RUN pip install --no-cache-dir -e . --no-build-isolation
 
