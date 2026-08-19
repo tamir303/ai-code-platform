@@ -1,0 +1,13 @@
+model_list:
+  - model_name: qwen-coder
+    litellm_params:
+      model: hosted_vllm/qwen-coder
+      api_base: http://vllm-test:8000/v1
+      api_key: "none"
+
+general_settings:
+  master_key: "os.environ/LITELLM_MASTER_KEY"
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false

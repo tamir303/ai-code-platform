@@ -28,6 +28,46 @@ services:
       timeout: 3s
       retries: 10
 
+  vllm-test:
+    build:
+      context: .
+      dockerfile: docker/vllm-cpu.Dockerfile
+    container_name: test-vllm-engine
+    environment:
+      - VLLM_CPU_KVCACHE_SPACE=2
+    volumes:
+      - hf_cache_test:/root/.cache/huggingface
+    command: >
+      --model Qwen/Qwen2.5-Coder-0.5B-Instruct
+      --served-model-name qwen-coder
+      --device cpu
+      --max-model-len 2048
+      --port 8000
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 300s
+
+  litellm-test:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: test-litellm-proxy
+    volumes:
+      - ./litellm/config.test.yaml:/app/config.yaml:ro
+    environment:
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-test-master-key}
+    command: [ "--config", "/app/config.yaml", "--port", "4000" ]
+    depends_on:
+      vllm-test:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
   test-runner:
     build:
       context: .
@@ -43,6 +83,8 @@ services:
       - POSTGRES_DB=code_assistant_test_db
       - REDIS_HOST=redis-test
       - REDIS_PORT=6379
+      - LITELLM_URL=http://litellm-test:4000
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-test-master-key}
     volumes:
       - ./src:/app/src
       - ./tests:/app/tests
@@ -54,4 +96,9 @@ services:
         condition: service_healthy
       redis-test:
         condition: service_healthy
+      litellm-test:
+        condition: service_healthy
     command: ["pytest", "tests/", "-v", "--cov=src", "--cov-report=term-missing"]
+
+volumes:
+  hf_cache_test:
