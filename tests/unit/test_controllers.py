@@ -10,6 +10,8 @@ from src.controller.auth_controller import AuthController
 from src.controller.session_controller import SessionController
 from src.controller.chat_controller import ChatController
 from src.controller.task_controller import TaskController
+from src.controller.autocomplete_controller import AutocompleteController
+from src.schemas.autocomplete import AutocompleteRequest, AutocompleteResponse
 from src.schemas.user import UserCreateRequest, UserResponse
 from src.schemas.chat import ChatRequest
 from src.schemas.task import CodeReviewRequest, CodeFilePayload, TaskStatusResponse
@@ -133,3 +135,21 @@ class TestTaskController:
 
         assert result == expected
         task_service.get_task_status.assert_awaited_once_with(TEST_TASK_ID, mock_user_entity.id)
+
+
+# ---------------------------------------------------------------------------
+# AutocompleteController
+# ---------------------------------------------------------------------------
+class TestAutocompleteController:
+    async def test_handle_autocomplete_delegates(self, mock_user_entity):
+        autocomplete_service = AsyncMock()
+        expected = AutocompleteResponse(completion="return a + b")
+        autocomplete_service.get_completion.return_value = expected
+
+        controller = AutocompleteController(autocomplete_service)
+        request = AutocompleteRequest(prefix="def add(a, b):\n    ")
+
+        result = await controller.handle_autocomplete(request, mock_user_entity)
+
+        assert result == expected
+        autocomplete_service.get_completion.assert_awaited_once_with(request, mock_user_entity)
