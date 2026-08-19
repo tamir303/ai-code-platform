@@ -116,12 +116,19 @@ data: {"session_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901", "content": "", "is_
 
 ### List User Sessions
 
-Retrieves all chat sessions associated with the authenticated user, sorted by last updated timestamp.
+Retrieves chat sessions associated with the authenticated user with pagination, sorted by last updated timestamp in descending order.
 
 ```http
-GET /api/v1/sessions
+GET /api/v1/sessions?limit=20&offset=0
 X-API-Key: sk-your-virtual-api-key
 ```
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Validation | Description |
+|-----------|------|---------|------------|-------------|
+| `limit` | `integer` | `20` | `1 <= limit <= 100` | Maximum number of sessions to return |
+| `offset` | `integer` | `0` | `offset >= 0` | Number of sessions to skip for pagination |
 
 **Response** `200 OK`:
 ```json
@@ -139,12 +146,19 @@ X-API-Key: sk-your-virtual-api-key
 
 ### Get Session Detail & Message History
 
-Fetches a specific session along with all historical messages in chronological order.
+Fetches a specific session along with a paginated slice of historical messages in chronological order.
 
 ```http
-GET /api/v1/sessions/{session_id}
+GET /api/v1/sessions/{session_id}?limit=50&offset=0
 X-API-Key: sk-your-virtual-api-key
 ```
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Validation | Description |
+|-----------|------|---------|------------|-------------|
+| `limit` | `integer` | `50` | `1 <= limit <= 100` | Maximum number of historical messages to return |
+| `offset` | `integer` | `0` | `offset >= 0` | Number of messages to skip for pagination |
 
 **Response** `200 OK`:
 ```json
@@ -153,6 +167,9 @@ X-API-Key: sk-your-virtual-api-key
   "title": "Write a thread-safe LRU Cache in Python...",
   "created_at": "2026-08-18T09:00:00Z",
   "updated_at": "2026-08-18T09:05:30Z",
+  "total_messages": 2,
+  "limit": 50,
+  "offset": 0,
   "messages": [
     {
       "role": "user",

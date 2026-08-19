@@ -125,3 +125,6 @@ class TestSessionSchemas:
         now = datetime.now(UTC)
         resp = SessionDetailResponse(id=uuid.uuid4(), title="Test", created_at=now, updated_at=now)
         assert resp.messages == []
+        assert resp.total_messages == 0
+        assert resp.limit == 50
+        assert resp.offset == 0

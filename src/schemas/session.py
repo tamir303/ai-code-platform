@@ -18,3 +18,6 @@ class SessionResponse(BaseModel):
 
 class SessionDetailResponse(SessionResponse):
     messages: list[MessageItem] = []
+    total_messages: int = 0
+    limit: int = 50
+    offset: int = 0

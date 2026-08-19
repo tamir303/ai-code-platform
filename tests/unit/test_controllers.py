@@ -59,10 +59,10 @@ class TestSessionController:
 
         controller = SessionController(session_service)
 
-        result = await controller.get_all_sessions(mock_user_entity)
+        result = await controller.get_all_sessions(mock_user_entity, limit=10, offset=5)
 
         assert result == []
-        session_service.list_user_sessions.assert_awaited_once_with(mock_user_entity.id)
+        session_service.list_user_sessions.assert_awaited_once_with(mock_user_entity.id, limit=10, offset=5)
 
     async def test_get_session(self, mock_user_entity):
         session_service = AsyncMock()
@@ -70,9 +70,9 @@ class TestSessionController:
 
         controller = SessionController(session_service)
 
-        await controller.get_session(TEST_SESSION_ID, mock_user_entity)
+        await controller.get_session(TEST_SESSION_ID, mock_user_entity, limit=25, offset=10)
 
-        session_service.get_session_detail.assert_awaited_once_with(TEST_SESSION_ID, mock_user_entity.id)
+        session_service.get_session_detail.assert_awaited_once_with(TEST_SESSION_ID, mock_user_entity.id, limit=25, offset=10)
 
     async def test_delete_session(self, mock_user_entity):
         session_service = AsyncMock()

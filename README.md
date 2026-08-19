@@ -237,3 +237,4 @@ Verify complete GPU passthrough and driver health at any time:
 
 - **[API Reference (API.md)](API.md)** — Complete endpoint specifications, schemas, error codes, and SSE streaming payload details.
 - **[System Architecture (ARCHITECTURE.md)](ARCHITECTURE.md)** — Deep dive into service interactions, Nginx buffering control, layered design, and data models.
+- **[Testing Guide (TESTS.md)](TESTS.md)** — Unit, integration, and E2E test suites, coverage reports, and Dockerized test workflows.
