@@ -1,20 +1,26 @@
 """
 E2E test: Complete user journey.
 Simulates a real user going through the full API workflow:
-  1. Provision a user → get API key
-  2. GET /auth/me → confirm identity
-  3. POST /chat → new session auto-created, SSE streamed
-  4. GET /sessions → session visible in list
-  5. GET /sessions/{id} → messages visible
-  6. POST /tasks/code-review → task enqueued
-  7. GET /tasks/{id} → status returned
-  8. DELETE /sessions/{id} → cleanup
-  9. GET /sessions → empty
+   1. Provision a user → real LiteLLM virtual key issued
+   2. GET /auth/me → confirm identity
+   3. POST /chat → new session auto-created, real SSE tokens streamed from vLLM
+   4. GET /sessions → session visible in list
+   5. GET /sessions/{id} → messages visible
+  5b. POST /autocomplete → real fill-in-the-middle completion from vLLM
+   6. POST /tasks/code-review → task enqueued
+   7. GET /tasks/{id} → status returned
+   8. DELETE /sessions/{id} → cleanup
+   9. GET /sessions → empty
+
+Inference is NOT mocked here: steps 1, 3, and 5b hit the live litellm-test /
+vllm-test services. Only Celery dispatch (steps 6-7) is mocked. Because real
+model output is non-deterministic, assertions check response shape and
+non-emptiness rather than exact text.
 """
 import json
 
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 
 from src.di.container import get_authenticated_user
 from src.models.entities import UserEntity
@@ -25,8 +31,9 @@ pytestmark = pytest.mark.e2e
 
 class TestCompleteUserJourney:
     """
-    Full provisioning → chat → sessions → tasks → cleanup flow.
-    LiteLLM and Celery are mocked but everything else runs through the real stack.
+    Full provisioning → chat → sessions → autocomplete → tasks → cleanup flow.
+    Only Celery task dispatch is mocked; provisioning, chat, and autocomplete
+    all run against the real litellm-test/vllm-test stack.
     """
 
     @patch("src.services.implementations.task_service.batch_code_review_task")
@@ -37,25 +44,15 @@ class TestCompleteUserJourney:
         mock_celery_task,
         e2e_client,
     ):
-        # -- Step 1: Provision a user --
-        mock_auth_response = MagicMock()
-        mock_auth_response.status_code = 200
-        mock_auth_response.json.return_value = {"key": "sk-journey-key"}
-
-        mock_auth_instance = AsyncMock()
-        mock_auth_instance.post.return_value = mock_auth_response
-        mock_auth_instance.__aenter__ = AsyncMock(return_value=mock_auth_instance)
-        mock_auth_instance.__aexit__ = AsyncMock(return_value=False)
-
-        with patch("src.services.implementations.auth_service.httpx.AsyncClient", return_value=mock_auth_instance):
-            provision_resp = await e2e_client.post(
-                "/api/v1/auth/provision",
-                json={"username": "journey_user"},
-            )
-            assert provision_resp.status_code == 201
-            user_data = provision_resp.json()
-            api_key = user_data["api_key"]
-            assert api_key == "sk-journey-key"
+        # -- Step 1: Provision a user (real LiteLLM /key/generate call) --
+        provision_resp = await e2e_client.post(
+            "/api/v1/auth/provision",
+            json={"username": "journey_user"},
+        )
+        assert provision_resp.status_code == 201
+        user_data = provision_resp.json()
+        api_key = user_data["api_key"]
+        assert api_key.startswith("sk-")
 
         # -- Step 2: GET /auth/me --
         from src.main import app
@@ -80,36 +77,14 @@ class TestCompleteUserJourney:
         assert me_resp.status_code == 200
         assert me_resp.json()["username"] == "journey_user"
 
-        # -- Step 3: POST /chat → SSE streaming --
-        from contextlib import asynccontextmanager
-
-        class _FakeStreamResponse:
-            def __init__(self):
-                self.status_code = 200
-
-            async def aiter_lines(self):
-                yield 'data: {"choices":[{"delta":{"content":"Hello "}}]}'
-                yield 'data: {"choices":[{"delta":{"content":"World"}}]}'
-                yield "data: [DONE]"
-
-        class _FakeChatClient:
-            @asynccontextmanager
-            async def stream(self, *args, **kwargs):
-                yield _FakeStreamResponse()
-
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *args):
-                pass
-
-        with patch("src.services.implementations.chat_service.httpx.AsyncClient", return_value=_FakeChatClient()):
-            chat_resp = await e2e_client.post(
-                "/api/v1/chat",
-                json={"message": "Write a hello world function"},
-                headers={"X-API-Key": api_key},
-            )
-            assert chat_resp.status_code == 200
+        # -- Step 3: POST /chat → real SSE stream from litellm-test/vllm-test --
+        chat_resp = await e2e_client.post(
+            "/api/v1/chat",
+            json={"message": "Write a hello world function"},
+            headers={"X-API-Key": api_key},
+        )
+        assert chat_resp.status_code == 200
+        assert len(chat_resp.text.strip()) > 0
 
         # Parse SSE response to extract session_id
         sse_lines = chat_resp.text.strip().split("\n\n")
@@ -144,6 +119,21 @@ class TestCompleteUserJourney:
         assert len(detail["messages"]) >= 1
         roles = [m["role"] for m in detail["messages"]]
         assert "user" in roles
+
+        # -- Step 5b: POST /autocomplete → real FIM completion from vllm-test --
+        autocomplete_resp = await e2e_client.post(
+            "/api/v1/autocomplete",
+            json={
+                "prefix": "def add(a: int, b: int) -> int:\n    ",
+                "suffix": "\n",
+                "language": "python",
+            },
+            headers={"X-API-Key": api_key},
+        )
+        assert autocomplete_resp.status_code == 200
+        completion = autocomplete_resp.json()["completion"]
+        assert isinstance(completion, str)
+        assert len(completion) > 0
 
         # -- Step 6: POST /tasks/code-review → task enqueued --
         mock_job = MagicMock()
