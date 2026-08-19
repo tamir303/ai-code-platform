@@ -150,20 +150,26 @@ pip install -r requirements.txt
 ### Running Test Commands
 
 ```bash
-# Run all tests
-pytest tests/ -v
+# Run everything that works without external services (116 tests, 100% coverage)
+pytest tests/unit tests/integration -v
 
 # Run by tier using pytest markers
 pytest tests/unit/ -v -m unit
 pytest tests/integration/ -v -m integration
-pytest tests/e2e/ -v -m e2e
 
 # Run with coverage report in terminal
-pytest tests/ --cov=src --cov-report=term-missing
+pytest tests/unit tests/integration --cov=src --cov-report=term-missing
 
 # Run with HTML coverage report (generates htmlcov/index.html)
-pytest tests/ --cov=src --cov-report=html
+pytest tests/unit tests/integration --cov=src --cov-report=html
 ```
+
+> **E2E tests are not runnable this way.** `pytest tests/e2e` calls real
+> LiteLLM/vLLM and will fail immediately with
+> `Live inference stack unreachable at ...` unless the Docker stack from §5 is
+> up. This is deliberate — they fail loudly rather than skipping silently, so a
+> green run never overstates what was actually verified. Use the Docker command
+> in §5 to run the full suite including e2e.
 
 ---
 
@@ -174,24 +180,44 @@ An isolated, reproducible Docker Compose configuration is provided in [`docker-c
 ### Architecture
 
 ```
-                  ┌─────────────────────────────────┐
-                  │      test-runner (pytest)       │
-                  │   FastAPI App + Test Suites     │
-                  └────────┬───────────────┬────────┘
-                           │               │
-            (PostgreSQL Port 5433)   (Redis Port 6380)
-                           │               │
-                           ▼               ▼
-                  ┌─────────────────┐ ┌─────────────┐
-                  │  postgres-test  │ │ redis-test  │
-                  │ (Postgres 16)   │ │(Redis Stack)│
-                  │  tmpfs storage  │ └─────────────┘
-                  └─────────────────┘
+              ┌─────────────────────────────────────────┐
+              │         test-runner (pytest)            │
+              │      FastAPI App + Test Suites          │
+              └───┬──────────────┬──────────────┬───────┘
+                  │              │              │
+        (Postgres 5433)   (Redis 6380)   (LiteLLM 4000)
+                  │              │              │
+                  ▼              ▼              ▼
+        ┌─────────────────┐ ┌───────────┐ ┌──────────────┐
+        │  postgres-test  │ │redis-test │ │ litellm-test │
+        │  (Postgres 16)  │ │  (Stack)  │ │   (proxy)    │
+        │  tmpfs storage  │ └───────────┘ └──────┬───────┘
+        └─────────────────┘                      │
+                                          (vLLM 8000)
+                                                 ▼
+                                        ┌──────────────────┐
+                                        │    vllm-test     │
+                                        │ Qwen2.5-Coder-   │
+                                        │ 0.5B-Instruct    │
+                                        │    (CPU-only)    │
+                                        └──────────────────┘
 ```
 
 - **`postgres-test`**: Dedicated PostgreSQL 16 instance with automated healthcheck (`pg_isready`) and in-memory `tmpfs` volume for high I/O speed.
 - **`redis-test`**: Isolated Redis Stack instance on port `6380`.
+- **`vllm-test`**: Real vLLM OpenAI-compatible server built CPU-only from
+  [`docker/vllm-cpu.Dockerfile`](docker/vllm-cpu.Dockerfile), serving
+  `Qwen/Qwen2.5-Coder-0.5B-Instruct` under the name `qwen-coder`. Model weights
+  are cached in the `hf_cache_test` volume so repeat runs skip the download.
+  **First build compiles vLLM from source and is slow (tens of minutes);** the
+  healthcheck allows a 300s `start_period` for CPU model load.
+- **`litellm-test`**: LiteLLM proxy fronting `vllm-test`, configured by
+  [`litellm/config.test.yaml`](litellm/config.test.yaml). This is what issues the
+  real virtual API keys that e2e provisioning asserts against.
 - **`test-runner`**: Runs `entrypoint.sh` (which executes `alembic upgrade head` migrations on the test database) followed by pytest.
+
+Healthchecks are chained `vllm-test` → `litellm-test` → `test-runner`, so pytest
+does not start until real inference is actually serving.
 
 ### Running Tests in Docker
 
