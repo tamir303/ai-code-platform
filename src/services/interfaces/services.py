@@ -5,6 +5,7 @@ from src.schemas.chat import ChatRequest
 from src.schemas.session import SessionResponse, SessionDetailResponse
 from src.schemas.task import CodeReviewRequest, TaskStatusResponse
 from src.schemas.user import UserResponse
+from src.schemas.autocomplete import AutocompleteRequest, AutocompleteResponse
 from src.models.entities import UserEntity
 
 
@@ -38,3 +39,8 @@ class ITaskService(ABC):
     async def enqueue_code_review(self, request: CodeReviewRequest, user: UserEntity) -> TaskStatusResponse: ...
     @abstractmethod
     async def get_task_status(self, task_id: str, user_id: UUID) -> TaskStatusResponse: ...
+
+
+class IAutocompleteService(ABC):
+    @abstractmethod
+    async def get_completion(self, request: AutocompleteRequest, user: UserEntity) -> AutocompleteResponse: ...
