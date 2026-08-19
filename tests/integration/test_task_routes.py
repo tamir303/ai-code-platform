@@ -91,3 +91,27 @@ class TestGetTaskStatus:
         resp = await authenticated_client.get("/api/v1/tasks/nonexistent-task-id")
 
         assert resp.status_code == 404
+
+    @patch("src.services.implementations.task_service.AsyncResult")
+    async def test_success_status_persisted_to_db(self, mock_async_result_cls, authenticated_client, seeded_user):
+        """GET /api/v1/tasks/{id} with a SUCCESS Celery result writes it back to Postgres."""
+        await _seed_task()
+
+        mock_result = MagicMock()
+        mock_result.status = "SUCCESS"
+        mock_result.ready.return_value = True
+        mock_result.result = {"status": "COMPLETED", "files_analyzed": []}
+        mock_async_result_cls.return_value = mock_result
+
+        resp = await authenticated_client.get(f"/api/v1/tasks/{TEST_TASK_ID}")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "SUCCESS"
+
+        from sqlalchemy.future import select
+        from src.models.entities import TaskEntity
+        async with TestSessionLocal() as session:
+            row = (await session.execute(
+                select(TaskEntity).where(TaskEntity.id == TEST_TASK_ID)
+            )).scalar_one()
+            assert row.status == "SUCCESS"
+            assert row.result == {"status": "COMPLETED", "files_analyzed": []}
