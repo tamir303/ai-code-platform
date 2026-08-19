@@ -11,19 +11,19 @@ The testing strategy follows a tiered pyramid designed for high confidence, sub-
 ```
                   ┌──────────────────────┐
                   │      E2E Tests       │   (10 tests)
-                  │   Full User Journey  │
+                  │  Real vLLM/LiteLLM   │
                   ├──────────────────────┤
-                  │  Integration Tests   │   (16 tests)
+                  │  Integration Tests   │   (27 tests)
                   │ FastAPI + SQLite DB  │
                   ├──────────────────────┤
-                  │      Unit Tests      │   (66 tests)
+                  │      Unit Tests      │   (89 tests)
                   │ Pure Business Logic  │
                   └──────────────────────┘
 ```
 
 1. **Unit Tests (`tests/unit/`)** — Fast, isolated tests for pure business logic. All database calls, HTTP requests to LiteLLM, and Celery task dispatchers are mocked. No database or network connection required.
 2. **Integration Tests (`tests/integration/`)** — Tests the full FastAPI HTTP routing, dependency injection container, database transaction lifecycle, and response serialization using an in-memory SQLite database (`aiosqlite`). External inference and workers are mocked at the network boundary.
-3. **End-to-End Tests (`tests/e2e/`)** — Simulates realistic multi-step user workflows (provisioning $\rightarrow$ identity validation $\rightarrow$ streaming chat sessions $\rightarrow$ async task enqueuing $\rightarrow$ polling $\rightarrow$ teardown) and security error matrices.
+3. **End-to-End Tests (`tests/e2e/`)** — Simulates realistic multi-step user workflows (provisioning $\rightarrow$ identity validation $\rightarrow$ streaming chat sessions $\rightarrow$ autocomplete $\rightarrow$ async task enqueuing $\rightarrow$ polling $\rightarrow$ teardown) and security error matrices. Unlike the tiers above, these call **real LiteLLM and vLLM** — they are the only place inference is not mocked, and they fail loudly rather than skipping when that stack is unavailable.
 
 ---
 
@@ -41,16 +41,23 @@ tests/
 │   ├── test_session_service.py      # SessionService list, detail, deletion, 404s
 │   ├── test_chat_service.py         # ChatService session creation, auto-heal, SSE format
 │   ├── test_task_service.py         # TaskService Celery enqueue, status polling & DB sync
-│   ├── test_controllers.py          # Auth, Session, Chat, and Task controllers
+│   ├── test_autocomplete_service.py # AutocompleteService FIM prompt & /v1/completions call
+│   ├── test_controllers.py          # Auth, Session, Chat, Task, and Autocomplete controllers
 │   ├── test_mappers.py              # EntityMapper model-to-schema transformations
 │   ├── test_sse.py                  # SSE event serializer utility
 │   ├── test_schemas.py              # Pydantic validation rules and schema constraints
-│   └── test_settings.py             # AppSettings parsing & dynamic URL generation
+│   ├── test_settings.py             # AppSettings parsing & dynamic URL generation
+│   ├── test_di_container.py         # DI wiring not reachable via overridden fixtures
+│   ├── test_main.py                 # App lifespan & global exception handler
+│   ├── test_celery_app.py           # Celery signal handlers & synchronous DB sync
+│   └── test_worker_tasks.py         # batch_code_review_task success/failure/error paths
 ├── integration/                     # Integration test suite (@pytest.mark.integration)
 │   ├── __init__.py
 │   ├── conftest.py                  # In-memory async SQLite engine & client fixtures
 │   ├── test_auth_routes.py          # /api/v1/auth/provision & /api/v1/auth/me
 │   ├── test_session_routes.py       # /api/v1/sessions CRUD endpoints
+│   ├── test_chat_routes.py          # /api/v1/chat SSE stream & message persistence
+│   ├── test_autocomplete_routes.py  # /api/v1/autocomplete FIM completion endpoint
 │   ├── test_task_routes.py          # /api/v1/tasks Celery job enqueuing & status
 │   └── test_health.py               # /health endpoint verification
 └── e2e/                             # End-to-End test suite (@pytest.mark.e2e)
@@ -68,47 +75,57 @@ tests/
 
 | Suite | Marker | Focus Area | Test Count |
 |-------|--------|------------|:----------:|
-| **Unit** | `unit` | Business logic, edge cases, error branching, schema parsing | **67** |
-| **Integration** | `integration` | API routes, status codes, dependency injection, DB queries, pagination | **19** |
+| **Unit** | `unit` | Business logic, edge cases, error branching, schema parsing | **89** |
+| **Integration** | `integration` | API routes, status codes, dependency injection, DB queries, pagination | **27** |
 | **E2E** | `e2e` | Multi-step client journeys, auth protection matrix | **10** |
-| **Total** | | | **96 (100% pass rate)** |
+| **Total** | | | **126 (100% pass rate)** |
+
+> The **10 e2e tests require the live `vllm-test`/`litellm-test` stack** and fail
+> fast if it is unreachable — see §5. The 116 unit + integration tests run
+> standalone with no external services and are the source of the matrix below.
 
 ### Coverage Matrix
 
 ```
-Name                                              Stmts   Miss  Cover
----------------------------------------------------------------------
-src/config/settings.py                               35      0   100%
-src/controller/auth_controller.py                    10      0   100%
-src/controller/chat_controller.py                    10      0   100%
-src/controller/session_controller.py                 13      0   100%
-src/controller/task_controller.py                    10      0   100%
-src/db/connection.py                                  7      0   100%
-src/db/interfaces/repositories.py                     6      0   100%
-src/db/repositories/session_repository.py            47      0   100%
-src/db/repositories/task_repository.py               27      8    70%
-src/db/repositories/user_repository.py               17      3    82%
-src/di/container.py                                  48      2    96%
-src/main.py                                          33      8    76%
-src/models/entities.py                               41      0   100%
-src/routes/api.py                                    10      0   100%
-src/routes/auth_routes.py                            12      0   100%
-src/routes/chat_routes.py                             9      0   100%
-src/routes/session_routes.py                         16      0   100%
-src/routes/task_routes.py                            12      0   100%
-src/schemas/chat.py                                   7      0   100%
-src/schemas/session.py                               10      0   100%
-src/schemas/task.py                                   7      0   100%
-src/schemas/user.py                                   4      0   100%
-src/services/implementations/auth_service.py         30      0   100%
-src/services/implementations/chat_service.py         51      3    94%
-src/services/implementations/session_service.py      23      0   100%
-src/services/implementations/task_service.py         26      0   100%
-src/services/interfaces/services.py                  12      0   100%
-src/utils/mappers.py                                 15      0   100%
-src/utils/sse.py                                      6      0   100%
----------------------------------------------------------------------
-TOTAL                                               608     57    91%
+Name                                                 Stmts   Miss  Cover
+------------------------------------------------------------------------
+src/config/settings.py                                  35      0   100%
+src/controller/auth_controller.py                       10      0   100%
+src/controller/autocomplete_controller.py                8      0   100%
+src/controller/chat_controller.py                       10      0   100%
+src/controller/session_controller.py                    13      0   100%
+src/controller/task_controller.py                       10      0   100%
+src/db/connection.py                                     7      0   100%
+src/db/interfaces/repositories.py                        6      0   100%
+src/db/repositories/session_repository.py               47      0   100%
+src/db/repositories/task_repository.py                  27      0   100%
+src/db/repositories/user_repository.py                  17      0   100%
+src/di/container.py                                     54      0   100%
+src/main.py                                             30      0   100%
+src/models/entities.py                                  41      0   100%
+src/routes/api.py                                       12      0   100%
+src/routes/auth_routes.py                               12      0   100%
+src/routes/autocomplete_routes.py                        9      0   100%
+src/routes/chat_routes.py                                9      0   100%
+src/routes/session_routes.py                            16      0   100%
+src/routes/task_routes.py                               12      0   100%
+src/schemas/autocomplete.py                              6      0   100%
+src/schemas/chat.py                                      7      0   100%
+src/schemas/session.py                                  10      0   100%
+src/schemas/task.py                                      7      0   100%
+src/schemas/user.py                                      4      0   100%
+src/services/implementations/auth_service.py            30      0   100%
+src/services/implementations/autocomplete_service.py    19      0   100%
+src/services/implementations/chat_service.py            51      0   100%
+src/services/implementations/session_service.py         23      0   100%
+src/services/implementations/task_service.py            26      0   100%
+src/services/interfaces/services.py                     14      0   100%
+src/utils/mappers.py                                    15      0   100%
+src/utils/sse.py                                         6      0   100%
+src/worker/celery_app.py                                29      0   100%
+src/worker/tasks.py                                     23      0   100%
+------------------------------------------------------------------------
+TOTAL                                                  657      0   100%
 ```
 
 ---
