@@ -10,6 +10,7 @@ from src.schemas.chat import ChatRequest, ChatChunkResponse
 from src.schemas.task import CodeFilePayload, CodeReviewRequest, TaskStatusResponse
 from src.schemas.user import UserCreateRequest, UserResponse
 from src.schemas.session import MessageItem, SessionResponse, SessionDetailResponse
+from src.schemas.autocomplete import AutocompleteRequest, AutocompleteResponse
 
 
 pytestmark = pytest.mark.unit
@@ -128,3 +129,29 @@ class TestSessionSchemas:
         assert resp.total_messages == 0
         assert resp.limit == 50
         assert resp.offset == 0
+
+
+# ---------------------------------------------------------------------------
+# Autocomplete schemas
+# ---------------------------------------------------------------------------
+class TestAutocompleteRequest:
+    def test_valid_with_all_fields(self):
+        req = AutocompleteRequest(prefix="def add(a, b):\n    ", suffix="\n", language="python")
+        assert req.prefix == "def add(a, b):\n    "
+        assert req.suffix == "\n"
+        assert req.language == "python"
+
+    def test_suffix_and_language_default(self):
+        req = AutocompleteRequest(prefix="def add(a, b):\n    ")
+        assert req.suffix == ""
+        assert req.language is None
+
+    def test_missing_prefix_raises(self):
+        with pytest.raises(ValidationError):
+            AutocompleteRequest()
+
+
+class TestAutocompleteResponse:
+    def test_valid(self):
+        resp = AutocompleteResponse(completion="return a + b")
+        assert resp.completion == "return a + b"
