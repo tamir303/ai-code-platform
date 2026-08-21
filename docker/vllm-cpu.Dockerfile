@@ -28,5 +28,15 @@ RUN pip install --no-cache-dir \
 ENV VLLM_TARGET_DEVICE=cpu
 RUN pip install --no-cache-dir -e . --no-build-isolation
 
+# Pin drifted transitive deps back to versions contemporary with this vLLM tag.
+# requirements-cpu.txt leaves these unbounded, so a fresh resolve picks releases
+# far newer than v0.6.6 supports and the engine dies during CPU executor import:
+#   triton > 3.1      -> ImportError: cannot import name 'default_cache_dir'
+#                        from 'triton.runtime.cache' (vllm/triton_utils)
+#   transformers >= 5 -> AttributeError: Qwen2Tokenizer has no attribute
+#                        'all_special_tokens_extended'
+# triton 3.1.0 is the version matching torch 2.5.1.
+RUN pip install --no-cache-dir "transformers>=4.45.2,<5" "triton==3.1.0"
+
 EXPOSE 8000
 ENTRYPOINT ["python", "-m", "vllm.entrypoints.openai.api_server"]
