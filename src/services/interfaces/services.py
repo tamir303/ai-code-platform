@@ -3,7 +3,6 @@ from typing import AsyncGenerator
 from uuid import UUID
 from src.schemas.chat import ChatRequest
 from src.schemas.session import SessionResponse, SessionDetailResponse
-from src.schemas.task import CodeReviewRequest, TaskStatusResponse
 from src.schemas.user import UserResponse
 from src.schemas.autocomplete import AutocompleteRequest, AutocompleteResponse
 from src.models.entities import UserEntity
@@ -32,13 +31,6 @@ class IChatService(ABC):
     async def stream_chat_response(
         self, request: ChatRequest, user: UserEntity
     ) -> AsyncGenerator[str, None]: ...
-
-
-class ITaskService(ABC):
-    @abstractmethod
-    async def enqueue_code_review(self, request: CodeReviewRequest, user: UserEntity) -> TaskStatusResponse: ...
-    @abstractmethod
-    async def get_task_status(self, task_id: str, user_id: UUID) -> TaskStatusResponse: ...
 
 
 class IAutocompleteService(ABC):

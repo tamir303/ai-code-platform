@@ -7,20 +7,16 @@ Simulates a real user going through the full API workflow:
    4. GET /sessions → session visible in list
    5. GET /sessions/{id} → messages visible
   5b. POST /autocomplete → real fill-in-the-middle completion from vLLM
-   6. POST /tasks/code-review → task enqueued
-   7. GET /tasks/{id} → status returned
-   8. DELETE /sessions/{id} → cleanup
-   9. GET /sessions → empty
+   6. DELETE /sessions/{id} → cleanup
+   7. GET /sessions → empty
 
-Inference is NOT mocked here: steps 1, 3, and 5b hit the live litellm-test /
-vllm-test services. Only Celery dispatch (steps 6-7) is mocked. Because real
-model output is non-deterministic, assertions check response shape and
-non-emptiness rather than exact text.
+Nothing is mocked: every step runs against the live litellm-test / vllm-test
+services. Because real model output is non-deterministic, assertions check
+response shape and boundaries rather than exact text.
 """
 import json
 
 import pytest
-from unittest.mock import patch, MagicMock
 
 from src.di.container import get_authenticated_user
 from src.models.entities import UserEntity
@@ -31,19 +27,11 @@ pytestmark = pytest.mark.e2e
 
 class TestCompleteUserJourney:
     """
-    Full provisioning → chat → sessions → autocomplete → tasks → cleanup flow.
-    Only Celery task dispatch is mocked; provisioning, chat, and autocomplete
-    all run against the real litellm-test/vllm-test stack.
+    Full provisioning → chat → sessions → autocomplete → cleanup flow, run
+    end to end against the real litellm-test/vllm-test stack with no mocks.
     """
 
-    @patch("src.services.implementations.task_service.batch_code_review_task")
-    @patch("src.services.implementations.task_service.AsyncResult")
-    async def test_full_journey(
-        self,
-        mock_async_result_cls,
-        mock_celery_task,
-        e2e_client,
-    ):
+    async def test_full_journey(self, e2e_client):
         # -- Step 1: Provision a user (real LiteLLM /key/generate call) --
         provision_resp = await e2e_client.post(
             "/api/v1/auth/provision",
@@ -65,7 +53,6 @@ class TestCompleteUserJourney:
                 api_key=api_key,
             )
             user.sessions = []
-            user.tasks = []
             return user
 
         app.dependency_overrides[get_authenticated_user] = override_auth
@@ -145,43 +132,14 @@ class TestCompleteUserJourney:
             tok in completion for tok in ("<|fim_", "<|endoftext|>")
         ), f"special token leaked into completion: {completion!r}"
 
-        # -- Step 6: POST /tasks/code-review → task enqueued --
-        mock_job = MagicMock()
-        mock_job.id = "journey-task-001"
-        mock_celery_task.delay.return_value = mock_job
-
-        task_resp = await e2e_client.post(
-            "/api/v1/tasks/code-review",
-            json={"files": [{"filename": "app.py", "code": "def main(): pass"}]},
-            headers={"X-API-Key": api_key},
-        )
-        assert task_resp.status_code == 200
-        task_data = task_resp.json()
-        assert task_data["task_id"] == "journey-task-001"
-        assert task_data["status"] == "QUEUED"
-
-        # -- Step 7: GET /tasks/{id} → status returned --
-        mock_result = MagicMock()
-        mock_result.status = "PENDING"
-        mock_result.ready.return_value = False
-        mock_result.info = None
-        mock_async_result_cls.return_value = mock_result
-
-        status_resp = await e2e_client.get(
-            "/api/v1/tasks/journey-task-001",
-            headers={"X-API-Key": api_key},
-        )
-        assert status_resp.status_code == 200
-        assert status_resp.json()["status"] == "PENDING"
-
-        # -- Step 8: DELETE /sessions/{id} → cleanup --
+        # -- Step 6: DELETE /sessions/{id} → cleanup --
         delete_resp = await e2e_client.delete(
             f"/api/v1/sessions/{session_id}",
             headers={"X-API-Key": api_key},
         )
         assert delete_resp.status_code == 204
 
-        # -- Step 9: GET /sessions → empty --
+        # -- Step 7: GET /sessions → empty --
         final_sessions = await e2e_client.get(
             "/api/v1/sessions",
             headers={"X-API-Key": api_key},

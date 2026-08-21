@@ -6,7 +6,7 @@ from datetime import datetime, UTC
 
 import pytest
 
-from src.models.entities import UserEntity, SessionEntity, MessageEntity, TaskEntity
+from src.models.entities import UserEntity, SessionEntity, MessageEntity
 
 
 # ---------------------------------------------------------------------------
@@ -17,7 +17,6 @@ TEST_SESSION_ID = uuid.UUID("b2222222-2222-2222-2222-222222222222")
 TEST_MESSAGE_ID = uuid.UUID("c3333333-3333-3333-3333-333333333333")
 TEST_API_KEY = "sk-test-key-abc123"
 TEST_USERNAME = "testuser"
-TEST_TASK_ID = "celery-task-id-001"
 
 FIXED_NOW = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
 
@@ -34,7 +33,6 @@ def mock_user_entity() -> UserEntity:
         created_at=FIXED_NOW,
     )
     user.sessions = []
-    user.tasks = []
     return user
 
 
@@ -61,17 +59,3 @@ def mock_message_entity(mock_session_entity) -> MessageEntity:
         created_at=FIXED_NOW,
     )
     return msg
-
-
-@pytest.fixture
-def mock_task_entity(mock_user_entity) -> TaskEntity:
-    task = TaskEntity(
-        id=TEST_TASK_ID,
-        user_id=mock_user_entity.id,
-        task_type="BATCH_CODE_REVIEW",
-        status="PENDING",
-        result=None,
-        created_at=FIXED_NOW,
-        updated_at=FIXED_NOW,
-    )
-    return task

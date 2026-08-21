@@ -9,13 +9,11 @@ from fastapi.responses import StreamingResponse
 from src.controller.auth_controller import AuthController
 from src.controller.session_controller import SessionController
 from src.controller.chat_controller import ChatController
-from src.controller.task_controller import TaskController
 from src.controller.autocomplete_controller import AutocompleteController
 from src.schemas.autocomplete import AutocompleteRequest, AutocompleteResponse
 from src.schemas.user import UserCreateRequest, UserResponse
 from src.schemas.chat import ChatRequest
-from src.schemas.task import CodeReviewRequest, CodeFilePayload, TaskStatusResponse
-from tests.conftest import TEST_USER_ID, TEST_SESSION_ID, TEST_API_KEY, TEST_USERNAME, TEST_TASK_ID
+from tests.conftest import TEST_USER_ID, TEST_SESSION_ID, TEST_API_KEY, TEST_USERNAME
 
 
 pytestmark = pytest.mark.unit
@@ -107,34 +105,6 @@ class TestChatController:
         assert isinstance(result, StreamingResponse)
         assert result.media_type == "text/event-stream"
 
-
-# ---------------------------------------------------------------------------
-# TaskController
-# ---------------------------------------------------------------------------
-class TestTaskController:
-    async def test_submit_code_review(self, mock_user_entity):
-        task_service = AsyncMock()
-        expected = TaskStatusResponse(task_id=TEST_TASK_ID, status="QUEUED")
-        task_service.enqueue_code_review.return_value = expected
-
-        controller = TaskController(task_service)
-        request = CodeReviewRequest(files=[CodeFilePayload(filename="a.py", code="pass")])
-
-        result = await controller.submit_code_review(request, mock_user_entity)
-
-        assert result == expected
-
-    async def test_check_task(self, mock_user_entity):
-        task_service = AsyncMock()
-        expected = TaskStatusResponse(task_id=TEST_TASK_ID, status="PENDING")
-        task_service.get_task_status.return_value = expected
-
-        controller = TaskController(task_service)
-
-        result = await controller.check_task(TEST_TASK_ID, mock_user_entity)
-
-        assert result == expected
-        task_service.get_task_status.assert_awaited_once_with(TEST_TASK_ID, mock_user_entity.id)
 
 
 # ---------------------------------------------------------------------------

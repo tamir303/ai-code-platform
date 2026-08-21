@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
-from src.models.entities import UserEntity, SessionEntity, MessageEntity, TaskEntity
+from src.models.entities import UserEntity, SessionEntity, MessageEntity
 
 
 class IUserRepository(ABC):
@@ -25,12 +25,3 @@ class ISessionRepository(ABC):
     async def count_messages(self, session_id: UUID) -> int: ...
     @abstractmethod
     async def delete(self, session_id: UUID, user_id: UUID) -> bool: ...
-
-
-class ITaskRepository(ABC):
-    @abstractmethod
-    async def create(self, task_id: str, user_id: UUID, task_type: str) -> TaskEntity: ...
-    @abstractmethod
-    async def get_by_id(self, task_id: str, user_id: UUID) -> TaskEntity | None: ...
-    @abstractmethod
-    async def update_status(self, task_id: str, status: str, result: dict | None = None) -> None: ...

@@ -1,7 +1,7 @@
 """
 Integration test fixtures.
 Provides a FastAPI TestClient backed by an in-memory SQLite database.
-External services (LiteLLM, Celery) are mocked at the boundary.
+External services (LiteLLM) are mocked at the boundary.
 """
 import uuid
 from datetime import datetime, UTC
@@ -92,7 +92,6 @@ def _make_mock_user():
         created_at=FIXED_NOW,
     )
     user.sessions = []
-    user.tasks = []
     return user
 
 

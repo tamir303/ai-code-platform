@@ -8,7 +8,6 @@ A fully self-hosted, GPU-accelerated AI coding assistant platform powered by **v
 - **SSE Streaming with Buffering Disabled** — High-throughput real-time token streaming with `proxy_buffering off` and chunked transfer optimizations.
 - **IDE & Continue.dev Native Support** — Direct OpenAI-compatible endpoint at `/v1` backed by LiteLLM virtual keys.
 - **FastAPI Code Assistant & Session Management** — Full conversation history, multi-session management, and task tracking at `/api/v1`.
-- **Batch Code Review** — Asynchronous Celery workers for AST complexity, concurrency safety, and vulnerability analysis.
 - **On-Prem GPU Inference** — High-performance vLLM engine serving Qwen2.5-Coder (or any Hugging Face model) via NVIDIA Container Toolkit.
 - **Key & Quota Management** — Provision scoped API keys with RPM/TPM limits and usage quotas.
 - **Alembic Database Migrations** — Managed relational database lifecycle for PostgreSQL with asyncpg.
@@ -23,8 +22,7 @@ A fully self-hosted, GPU-accelerated AI coding assistant platform powered by **v
 | **Reverse Proxy / Gateway** | Nginx 1.27 (Alpine) | SSL termination, path routing, SSE buffering control, security headers |
 | **Inference Engine** | vLLM (OpenAI-compatible) | High-throughput GPU inference with PagedAttention |
 | **LLM Gateway** | LiteLLM | Key management, rate limiting, model routing, caching |
-| **Backend API** | FastAPI + Uvicorn | Session orchestration, chat history, async job management |
-| **Task Queue** | Celery + Redis | Asynchronous batch code analysis workers |
+| **Backend API** | FastAPI + Uvicorn | Session orchestration, chat history, code completion |
 | **Database** | PostgreSQL 16 + asyncpg | Persistent data store for users, sessions, messages, and tasks |
 | **Database Migrations** | Alembic | Version-controlled schema migrations |
 | **Cache & Broker** | Redis Stack | Task broker, result backend, and LLM cache |
@@ -216,10 +214,9 @@ docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d
 ```
 
 ### Production Hardening Highlights:
-- **Port Isolation:** Only ports 80 & 443 are exposed. Database, Redis, Celery, and internal API services are sealed inside the Docker network.
+- **Port Isolation:** Only ports 80 & 443 are exposed. Database, Redis, and internal API services are sealed inside the Docker network.
 - **HTTP/2 & HSTS:** Enforced via `nginx.prod.conf`.
 - **Dynamic Domain Substitution:** Nginx configuration uses `envsubst` to dynamically populate `NGINX_HOST`.
-- **Production Workers:** Celery worker concurrency scaled to 8 workers.
 - **Dedicated Data Volumes:** Persistent data mounted under `/opt/data/`.
 
 ---

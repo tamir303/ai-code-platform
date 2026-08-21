@@ -7,7 +7,6 @@ import pytest
 from pydantic import ValidationError
 
 from src.schemas.chat import ChatRequest, ChatChunkResponse
-from src.schemas.task import CodeFilePayload, CodeReviewRequest, TaskStatusResponse
 from src.schemas.user import UserCreateRequest, UserResponse
 from src.schemas.session import MessageItem, SessionResponse, SessionDetailResponse
 from src.schemas.autocomplete import AutocompleteRequest, AutocompleteResponse
@@ -47,34 +46,6 @@ class TestChatChunkResponse:
         assert chunk.is_done is True
 
 
-# ---------------------------------------------------------------------------
-# CodeFilePayload / CodeReviewRequest
-# ---------------------------------------------------------------------------
-class TestCodeFilePayload:
-    def test_valid(self):
-        payload = CodeFilePayload(filename="main.py", code="print('hi')")
-        assert payload.filename == "main.py"
-
-    def test_missing_filename_raises(self):
-        with pytest.raises(ValidationError):
-            CodeFilePayload(code="pass")
-
-    def test_missing_code_raises(self):
-        with pytest.raises(ValidationError):
-            CodeFilePayload(filename="a.py")
-
-
-class TestCodeReviewRequest:
-    def test_valid_with_files(self):
-        req = CodeReviewRequest(
-            files=[CodeFilePayload(filename="a.py", code="pass")]
-        )
-        assert len(req.files) == 1
-
-    def test_empty_files_list(self):
-        req = CodeReviewRequest(files=[])
-        assert req.files == []
-
 
 # ---------------------------------------------------------------------------
 # UserCreateRequest / UserResponse
@@ -95,20 +66,6 @@ class TestUserResponse:
         resp = UserResponse(id=uid, username="bob", api_key="sk-abc")
         assert resp.id == uid
 
-
-# ---------------------------------------------------------------------------
-# TaskStatusResponse
-# ---------------------------------------------------------------------------
-class TestTaskStatusResponse:
-    def test_without_result(self):
-        resp = TaskStatusResponse(task_id="t-1", status="PENDING")
-        assert resp.result is None
-
-    def test_with_result(self):
-        resp = TaskStatusResponse(
-            task_id="t-1", status="SUCCESS", result={"files_analyzed": []}
-        )
-        assert resp.result == {"files_analyzed": []}
 
 
 # ---------------------------------------------------------------------------

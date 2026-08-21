@@ -31,12 +31,12 @@ The **On-Prem AI Code Platform** is packaged into an isolated multi-container to
        │               │        (:8000 on NVIDIA GPU)         │     │ & Cache        │
        │               └──────────────────────────────────────┘     └────────────────┘
        │                                                              │
-       ├───────────────────────────────────┬──────────────────────────┤
-       ▼                                   ▼                          ▼
-┌──────────────┐                    ┌──────────────┐           ┌──────────────┐
-│ Celery Async │                    │  PostgreSQL  │           │    Redis     │
-│ Worker       │                    │   (:5432)    │           │   (:6379)    │
-└──────────────┘                    └──────────────┘           └──────────────┘
+       ├──────────────────────────┤
+       ▼                          ▼
+┌──────────────┐           ┌──────────────┐
+│  PostgreSQL  │           │    Redis     │
+│   (:5432)    │           │   (:6379)    │
+└──────────────┘           └──────────────┘
 ```
 
 ---
@@ -102,16 +102,11 @@ location /api/v1/ {
 - **Lifecycle Management:** Database connection pools, schema initialization via Alembic `entrypoint.sh`, and cleanup handled inside FastAPI `lifespan`.
 - **Global Error Handling:** Middleware intercepts unhandled exceptions, logs tracebacks, and outputs uniform JSON errors.
 
-### D. Celery Worker Queue
-- **Role:** Asynchronous offline processing (e.g. multi-file security & code quality batch reviews).
-- **Broker & Backend:** Redis Stack.
-- **State Synchronization:** Native Celery signals (`task_success`, `task_failure`) execute database callbacks on worker threads to guarantee PostgreSQL task tables reflect actual job outcomes.
-
-### E. PostgreSQL & Alembic
-- **Role:** Primary transactional database for users, chat sessions, message histories, and asynchronous job states.
+### D. PostgreSQL & Alembic
+- **Role:** Primary transactional database for users, chat sessions, and message histories.
 - **Migrations:** Automated on startup via `alembic upgrade head` inside container entrypoints.
 
-### F. Observability (Prometheus & Grafana)
+### E. Observability (Prometheus & Grafana)
 - **Scrape Targets:** FastAPI (`:8080/metrics`), LiteLLM (`:4000`), vLLM (`:8000`).
 - **Grafana Subpath:** Served securely behind Nginx at `/grafana/` via `GF_SERVER_SERVE_FROM_SUB_PATH=true`.
 
@@ -196,25 +191,6 @@ IDE (Continue.dev)        Nginx                    LiteLLM                     v
        │◄─OpenAI SSE Chunk──│◄─Forward SSE Chunk──────│                            │
 ```
 
-### 3. Asynchronous Batch Code Review (`POST /api/v1/tasks/code-review`)
-
-```
-Client          Nginx           FastAPI          Postgres          Redis          Celery Worker        LiteLLM / vLLM
-  │               │                │                │                │                  │                    │
-  │──POST Task───►│──proxy_pass───►│                │                │                  │                    │
-  │               │                │──Insert Task──►│                │                  │                    │
-  │               │                │──Enqueue Job───────────────────►│                  │                    │
-  │◄──task_id─────│◄──return id────│                │                │                  │                    │
-  │               │                │                │                │──Pop Job────────►│                    │
-  │               │                │                │                │                  │──Analyze Files────►│
-  │               │                │                │                │◄─Update Prog─────│                    │
-  │──Poll Task───►│──proxy_pass───►│──Query State──►│                │                  │                    │
-  │◄──Status──────│◄───────────────│                │                │                  │                    │
-  │               │                │                │◄──Signal DB Update────────────────│ (Task Completed)   │
-```
-
----
-
 ## 6. Relational Entity Schema
 
 ```
@@ -264,6 +240,5 @@ Client          Nginx           FastAPI          Postgres          Redis        
 | **Source Mounting** | Live reload (`./src`, `./alembic`) | Immutable container builds (no code mounts) |
 | **Port Exposure** | Ports 80, 443 (Internal ports sealed) | Ports 80, 443 strictly |
 | **Security Headers** | Basic CORS | HSTS, X-Frame-Options, XSS protection, nosniff |
-| **Celery Scale** | 2 concurrent workers | 8 concurrent workers |
 | **GPU Allocation** | 88% memory allocation, 8k context | 92% memory allocation, 16k+ context |
 | **Data Storage** | Local directory `./data/` | Host filesystem `/opt/data/` |

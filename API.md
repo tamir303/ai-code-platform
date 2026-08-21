@@ -198,95 +198,7 @@ X-API-Key: sk-your-virtual-api-key
 
 **Response** `204 No Content` (Empty Body)
 
----
-
-## 4. Asynchronous Batch Code Review (Celery)
-
-### Submit Batch Code Review Task
-
-Submits multiple code files for deep asynchronous analysis. Evaluates AST complexity, concurrency safety, edge cases, and security vulnerabilities.
-
-```http
-POST /api/v1/tasks/code-review
-X-API-Key: sk-your-virtual-api-key
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "files": [
-    {
-      "filename": "database.py",
-      "code": "def query_user(user_id):\n    return db.execute(f'SELECT * FROM users WHERE id = {user_id}')"
-    },
-    {
-      "filename": "server.py",
-      "code": "import subprocess\ndef ping_host(host):\n    subprocess.Popen('ping ' + host, shell=True)"
-    }
-  ]
-}
-```
-
-**Response** `200 OK`:
-```json
-{
-  "task_id": "8f7e6d5c-4b3a-2109-8765-fedcba098765",
-  "status": "QUEUED",
-  "result": null
-}
-```
-
----
-
-### Poll Task Status & Results
-
-Checks task execution status. Progress is tracked dynamically via Redis, and final results are automatically written back to PostgreSQL via Celery signals.
-
-```http
-GET /api/v1/tasks/{task_id}
-X-API-Key: sk-your-virtual-api-key
-```
-
-**Response (In Progress):**
-```json
-{
-  "task_id": "8f7e6d5c-4b3a-2109-8765-fedcba098765",
-  "status": "PROGRESS",
-  "result": {
-    "current": 1,
-    "total": 2,
-    "file": "database.py"
-  }
-}
-```
-
-**Response (Completed):**
-```json
-{
-  "task_id": "8f7e6d5c-4b3a-2109-8765-fedcba098765",
-  "status": "SUCCESS",
-  "result": {
-    "status": "COMPLETED",
-    "files_analyzed": [
-      {
-        "filename": "database.py",
-        "review": "### Critical Vulnerability Detected\n- **SQL Injection**: Direct string interpolation in `db.execute`. Use parameterized queries.",
-        "status": "success"
-      },
-      {
-        "filename": "server.py",
-        "review": "### Critical Security Issue\n- **Command Injection**: `shell=True` allows shell metacharacters. Use array-based arguments.",
-        "status": "success"
-      }
-    ]
-  }
-}
-```
-
----
-
-## 5. OpenAI Compatible API (Continue.dev & IDEs)
+## 4. OpenAI Compatible API (Continue.dev & IDEs)
 
 Directly accessible via Nginx at `https://localhost/v1/*`.
 
@@ -313,7 +225,7 @@ Content-Type: application/json
 
 ---
 
-## 6. System & Infrastructure Endpoints
+## 5. System & Infrastructure Endpoints
 
 ### Health Check
 
