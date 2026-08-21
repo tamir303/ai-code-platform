@@ -68,6 +68,6 @@ async def health_check():
     return {"status": "HEALTHY", "env": settings.ENV}
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     import uvicorn
     uvicorn.run("src.main:app", host=settings.HOST, port=settings.PORT, reload=True)

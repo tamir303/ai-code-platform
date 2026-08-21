@@ -7,9 +7,9 @@ import pytest
 from pydantic import ValidationError
 
 from src.schemas.chat import ChatRequest, ChatChunkResponse
-from src.schemas.task import CodeFilePayload, CodeReviewRequest, TaskStatusResponse
 from src.schemas.user import UserCreateRequest, UserResponse
 from src.schemas.session import MessageItem, SessionResponse, SessionDetailResponse
+from src.schemas.autocomplete import AutocompleteRequest, AutocompleteResponse
 
 
 pytestmark = pytest.mark.unit
@@ -46,34 +46,6 @@ class TestChatChunkResponse:
         assert chunk.is_done is True
 
 
-# ---------------------------------------------------------------------------
-# CodeFilePayload / CodeReviewRequest
-# ---------------------------------------------------------------------------
-class TestCodeFilePayload:
-    def test_valid(self):
-        payload = CodeFilePayload(filename="main.py", code="print('hi')")
-        assert payload.filename == "main.py"
-
-    def test_missing_filename_raises(self):
-        with pytest.raises(ValidationError):
-            CodeFilePayload(code="pass")
-
-    def test_missing_code_raises(self):
-        with pytest.raises(ValidationError):
-            CodeFilePayload(filename="a.py")
-
-
-class TestCodeReviewRequest:
-    def test_valid_with_files(self):
-        req = CodeReviewRequest(
-            files=[CodeFilePayload(filename="a.py", code="pass")]
-        )
-        assert len(req.files) == 1
-
-    def test_empty_files_list(self):
-        req = CodeReviewRequest(files=[])
-        assert req.files == []
-
 
 # ---------------------------------------------------------------------------
 # UserCreateRequest / UserResponse
@@ -95,20 +67,6 @@ class TestUserResponse:
         assert resp.id == uid
 
 
-# ---------------------------------------------------------------------------
-# TaskStatusResponse
-# ---------------------------------------------------------------------------
-class TestTaskStatusResponse:
-    def test_without_result(self):
-        resp = TaskStatusResponse(task_id="t-1", status="PENDING")
-        assert resp.result is None
-
-    def test_with_result(self):
-        resp = TaskStatusResponse(
-            task_id="t-1", status="SUCCESS", result={"files_analyzed": []}
-        )
-        assert resp.result == {"files_analyzed": []}
-
 
 # ---------------------------------------------------------------------------
 # Session schemas
@@ -125,3 +83,32 @@ class TestSessionSchemas:
         now = datetime.now(UTC)
         resp = SessionDetailResponse(id=uuid.uuid4(), title="Test", created_at=now, updated_at=now)
         assert resp.messages == []
+        assert resp.total_messages == 0
+        assert resp.limit == 50
+        assert resp.offset == 0
+
+
+# ---------------------------------------------------------------------------
+# Autocomplete schemas
+# ---------------------------------------------------------------------------
+class TestAutocompleteRequest:
+    def test_valid_with_all_fields(self):
+        req = AutocompleteRequest(prefix="def add(a, b):\n    ", suffix="\n", language="python")
+        assert req.prefix == "def add(a, b):\n    "
+        assert req.suffix == "\n"
+        assert req.language == "python"
+
+    def test_suffix_and_language_default(self):
+        req = AutocompleteRequest(prefix="def add(a, b):\n    ")
+        assert req.suffix == ""
+        assert req.language is None
+
+    def test_missing_prefix_raises(self):
+        with pytest.raises(ValidationError):
+            AutocompleteRequest()
+
+
+class TestAutocompleteResponse:
+    def test_valid(self):
+        resp = AutocompleteResponse(completion="return a + b")
+        assert resp.completion == "return a + b"

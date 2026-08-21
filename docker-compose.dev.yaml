@@ -90,25 +90,6 @@ services:
       - litellm
     restart: unless-stopped
 
-  celery-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: dev-celery-worker
-    command: celery -A src.worker.celery_app.celery_app worker --loglevel=info -c 2
-    volumes:
-      - ./src:/app/src
-      - ./alembic:/app/alembic
-      - ./alembic.ini:/app/alembic.ini
-    env_file: .env.dev
-    environment:
-      - APP_ENV=dev
-    depends_on:
-      - redis
-      - postgres
-      - litellm
-    restart: unless-stopped
-
   prometheus:
     image: prom/prometheus:v2.54.0
     container_name: dev-prometheus

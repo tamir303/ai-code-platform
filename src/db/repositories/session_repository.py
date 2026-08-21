@@ -1,4 +1,5 @@
 from uuid import UUID
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -26,11 +27,13 @@ class PostgresSessionRepository(ISessionRepository):
         res = await self._db.execute(stmt)
         return res.scalar_one_or_none()
 
-    async def list_by_user(self, user_id: UUID) -> list[SessionEntity]:
+    async def list_by_user(self, user_id: UUID, limit: int = 20, offset: int = 0) -> list[SessionEntity]:
         stmt = (
             select(SessionEntity)
             .where(SessionEntity.user_id == user_id)
             .order_by(SessionEntity.updated_at.desc())
+            .offset(offset)
+            .limit(limit)
         )
         res = await self._db.execute(stmt)
         return list(res.scalars().all())
@@ -42,14 +45,22 @@ class PostgresSessionRepository(ISessionRepository):
         await self._db.refresh(msg)
         return msg
 
-    async def get_messages(self, session_id: UUID) -> list[MessageEntity]:
+    async def get_messages(self, session_id: UUID, limit: int | None = None, offset: int = 0) -> list[MessageEntity]:
         stmt = (
             select(MessageEntity)
             .where(MessageEntity.session_id == session_id)
             .order_by(MessageEntity.created_at.asc())
+            .offset(offset)
         )
+        if limit is not None:
+            stmt = stmt.limit(limit)
         res = await self._db.execute(stmt)
         return list(res.scalars().all())
+
+    async def count_messages(self, session_id: UUID) -> int:
+        stmt = select(func.count(MessageEntity.id)).where(MessageEntity.session_id == session_id)
+        res = await self._db.execute(stmt)
+        return res.scalar() or 0
 
     async def delete(self, session_id: UUID, user_id: UUID) -> bool:
         session = await self.get_by_id(session_id, user_id)

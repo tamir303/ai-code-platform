@@ -85,21 +85,6 @@ services:
       - litellm
     restart: always
 
-  celery-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: prod-celery-worker
-    command: celery -A src.worker.celery_app.celery_app worker --loglevel=info -c 8
-    env_file: .env.prod
-    environment:
-      - APP_ENV=prod
-    depends_on:
-      - redis
-      - postgres
-      - litellm
-    restart: always
-
   prometheus:
     image: prom/prometheus:v2.54.0
     container_name: prod-prometheus

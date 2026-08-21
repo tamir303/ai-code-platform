@@ -1,0 +1,11 @@
+# Shell scripts must keep LF endings even on Windows checkouts: they are COPYed
+# into Linux images, and a CRLF shebang makes exec fail with "no such file or
+# directory" because the kernel looks for an interpreter named "/bin/bash\r".
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+
+# Same reasoning for container-side config consumed by Linux tooling.
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf

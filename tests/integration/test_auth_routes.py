@@ -68,6 +68,17 @@ class TestGetMe:
         assert data["username"] == TEST_USERNAME
         assert data["api_key"] == TEST_API_KEY
 
+    async def test_get_me_with_real_auth_flow(self, client, seeded_user):
+        """GET /api/v1/auth/me with a real X-API-Key header, no auth override —
+        exercises the real AuthService.authenticate_key -> user_repo.get_by_api_key path."""
+        resp = await client.get(
+            "/api/v1/auth/me",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["username"] == TEST_USERNAME
+
     async def test_get_me_unauthenticated(self, client):
         """GET /api/v1/auth/me without API key returns 401 or 403."""
         resp = await client.get("/api/v1/auth/me")

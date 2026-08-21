@@ -9,11 +9,11 @@ from fastapi.responses import StreamingResponse
 from src.controller.auth_controller import AuthController
 from src.controller.session_controller import SessionController
 from src.controller.chat_controller import ChatController
-from src.controller.task_controller import TaskController
+from src.controller.autocomplete_controller import AutocompleteController
+from src.schemas.autocomplete import AutocompleteRequest, AutocompleteResponse
 from src.schemas.user import UserCreateRequest, UserResponse
 from src.schemas.chat import ChatRequest
-from src.schemas.task import CodeReviewRequest, CodeFilePayload, TaskStatusResponse
-from tests.conftest import TEST_USER_ID, TEST_SESSION_ID, TEST_API_KEY, TEST_USERNAME, TEST_TASK_ID
+from tests.conftest import TEST_USER_ID, TEST_SESSION_ID, TEST_API_KEY, TEST_USERNAME
 
 
 pytestmark = pytest.mark.unit
@@ -59,10 +59,10 @@ class TestSessionController:
 
         controller = SessionController(session_service)
 
-        result = await controller.get_all_sessions(mock_user_entity)
+        result = await controller.get_all_sessions(mock_user_entity, limit=10, offset=5)
 
         assert result == []
-        session_service.list_user_sessions.assert_awaited_once_with(mock_user_entity.id)
+        session_service.list_user_sessions.assert_awaited_once_with(mock_user_entity.id, limit=10, offset=5)
 
     async def test_get_session(self, mock_user_entity):
         session_service = AsyncMock()
@@ -70,9 +70,9 @@ class TestSessionController:
 
         controller = SessionController(session_service)
 
-        await controller.get_session(TEST_SESSION_ID, mock_user_entity)
+        await controller.get_session(TEST_SESSION_ID, mock_user_entity, limit=25, offset=10)
 
-        session_service.get_session_detail.assert_awaited_once_with(TEST_SESSION_ID, mock_user_entity.id)
+        session_service.get_session_detail.assert_awaited_once_with(TEST_SESSION_ID, mock_user_entity.id, limit=25, offset=10)
 
     async def test_delete_session(self, mock_user_entity):
         session_service = AsyncMock()
@@ -106,30 +106,20 @@ class TestChatController:
         assert result.media_type == "text/event-stream"
 
 
-# ---------------------------------------------------------------------------
-# TaskController
-# ---------------------------------------------------------------------------
-class TestTaskController:
-    async def test_submit_code_review(self, mock_user_entity):
-        task_service = AsyncMock()
-        expected = TaskStatusResponse(task_id=TEST_TASK_ID, status="QUEUED")
-        task_service.enqueue_code_review.return_value = expected
 
-        controller = TaskController(task_service)
-        request = CodeReviewRequest(files=[CodeFilePayload(filename="a.py", code="pass")])
+# ---------------------------------------------------------------------------
+# AutocompleteController
+# ---------------------------------------------------------------------------
+class TestAutocompleteController:
+    async def test_handle_autocomplete_delegates(self, mock_user_entity):
+        autocomplete_service = AsyncMock()
+        expected = AutocompleteResponse(completion="return a + b")
+        autocomplete_service.get_completion.return_value = expected
 
-        result = await controller.submit_code_review(request, mock_user_entity)
+        controller = AutocompleteController(autocomplete_service)
+        request = AutocompleteRequest(prefix="def add(a, b):\n    ")
+
+        result = await controller.handle_autocomplete(request, mock_user_entity)
 
         assert result == expected
-
-    async def test_check_task(self, mock_user_entity):
-        task_service = AsyncMock()
-        expected = TaskStatusResponse(task_id=TEST_TASK_ID, status="PENDING")
-        task_service.get_task_status.return_value = expected
-
-        controller = TaskController(task_service)
-
-        result = await controller.check_task(TEST_TASK_ID, mock_user_entity)
-
-        assert result == expected
-        task_service.get_task_status.assert_awaited_once_with(TEST_TASK_ID, mock_user_entity.id)
+        autocomplete_service.get_completion.assert_awaited_once_with(request, mock_user_entity)

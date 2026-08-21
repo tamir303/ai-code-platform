@@ -3,8 +3,8 @@ from typing import AsyncGenerator
 from uuid import UUID
 from src.schemas.chat import ChatRequest
 from src.schemas.session import SessionResponse, SessionDetailResponse
-from src.schemas.task import CodeReviewRequest, TaskStatusResponse
 from src.schemas.user import UserResponse
+from src.schemas.autocomplete import AutocompleteRequest, AutocompleteResponse
 from src.models.entities import UserEntity
 
 
@@ -19,9 +19,9 @@ class IAuthService(ABC):
 
 class ISessionService(ABC):
     @abstractmethod
-    async def list_user_sessions(self, user_id: UUID) -> list[SessionResponse]: ...
+    async def list_user_sessions(self, user_id: UUID, limit: int = 20, offset: int = 0) -> list[SessionResponse]: ...
     @abstractmethod
-    async def get_session_detail(self, session_id: UUID, user_id: UUID) -> SessionDetailResponse: ...
+    async def get_session_detail(self, session_id: UUID, user_id: UUID, limit: int = 50, offset: int = 0) -> SessionDetailResponse: ...
     @abstractmethod
     async def delete_session(self, session_id: UUID, user_id: UUID) -> None: ...
 
@@ -33,8 +33,6 @@ class IChatService(ABC):
     ) -> AsyncGenerator[str, None]: ...
 
 
-class ITaskService(ABC):
+class IAutocompleteService(ABC):
     @abstractmethod
-    async def enqueue_code_review(self, request: CodeReviewRequest, user: UserEntity) -> TaskStatusResponse: ...
-    @abstractmethod
-    async def get_task_status(self, task_id: str, user_id: UUID) -> TaskStatusResponse: ...
+    async def get_completion(self, request: AutocompleteRequest, user: UserEntity) -> AutocompleteResponse: ...

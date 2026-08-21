@@ -8,23 +8,22 @@ from src.config.settings import get_settings, AppSettings
 from src.models.entities import UserEntity
 
 # Repositories
-from src.db.interfaces.repositories import IUserRepository, ISessionRepository, ITaskRepository
+from src.db.interfaces.repositories import IUserRepository, ISessionRepository
 from src.db.repositories.user_repository import PostgresUserRepository
 from src.db.repositories.session_repository import PostgresSessionRepository
-from src.db.repositories.task_repository import PostgresTaskRepository
 
 # Services
-from src.services.interfaces.services import IAuthService, ISessionService, IChatService, ITaskService
+from src.services.interfaces.services import IAuthService, ISessionService, IChatService, IAutocompleteService
 from src.services.implementations.auth_service import AuthService
 from src.services.implementations.session_service import SessionService
 from src.services.implementations.chat_service import ChatService
-from src.services.implementations.task_service import TaskService
+from src.services.implementations.autocomplete_service import AutocompleteService
 
 # Controllers
 from src.controller.auth_controller import AuthController
 from src.controller.session_controller import SessionController
 from src.controller.chat_controller import ChatController
-from src.controller.task_controller import TaskController
+from src.controller.autocomplete_controller import AutocompleteController
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -42,10 +41,6 @@ def get_user_repository(db: AsyncSession = Depends(get_db_session)) -> IUserRepo
 
 def get_session_repository(db: AsyncSession = Depends(get_db_session)) -> ISessionRepository:
     return PostgresSessionRepository(db)
-
-
-def get_task_repository(db: AsyncSession = Depends(get_db_session)) -> ITaskRepository:
-    return PostgresTaskRepository(db)
 
 
 # --- Services DI ---
@@ -69,10 +64,10 @@ def get_chat_service(
     return ChatService(session_repo, settings)
 
 
-def get_task_service(
-    task_repo: ITaskRepository = Depends(get_task_repository)
-) -> ITaskService:
-    return TaskService(task_repo)
+def get_autocomplete_service(
+    settings: AppSettings = Depends(get_settings)
+) -> IAutocompleteService:
+    return AutocompleteService(settings)
 
 
 # --- Auth Principal DI ---
@@ -96,5 +91,7 @@ def get_chat_controller(chat_service: IChatService = Depends(get_chat_service)) 
     return ChatController(chat_service)
 
 
-def get_task_controller(task_service: ITaskService = Depends(get_task_service)) -> TaskController:
-    return TaskController(task_service)
+def get_autocomplete_controller(
+    autocomplete_service: IAutocompleteService = Depends(get_autocomplete_service)
+) -> AutocompleteController:
+    return AutocompleteController(autocomplete_service)

@@ -241,3 +241,52 @@ class TestSSEOutput:
         # Last chunk should be the done signal
         parsed_last = json.loads(chunks[-1].split("data: ")[1].strip())
         assert parsed_last["is_done"] is True
+
+
+class TestMalformedSSEChunks:
+    @patch("src.services.implementations.chat_service.httpx.AsyncClient")
+    async def test_skips_non_data_lines(self, mock_client_cls, mock_user_entity):
+        repo = AsyncMock()
+        repo.create.return_value = _make_session_entity()
+        repo.get_messages.return_value = []
+
+        sse_lines = [
+            "",
+            ": keep-alive",
+            'data: {"choices":[{"delta":{"content":"Hi"}}]}',
+            "data: [DONE]",
+        ]
+        fake_client = _FakeClient(_FakeStreamResponse(sse_lines))
+        mock_client_cls.return_value = fake_client
+
+        service = _build_service(session_repo=repo)
+        request = ChatRequest(message="Hi")
+
+        chunks = [c async for c in service.stream_chat_response(request, mock_user_entity)]
+
+        assert len(chunks) == 2
+        parsed_first = json.loads(chunks[0].split("data: ")[1].strip())
+        assert parsed_first["content"] == "Hi"
+
+    @patch("src.services.implementations.chat_service.httpx.AsyncClient")
+    async def test_skips_malformed_json_chunk(self, mock_client_cls, mock_user_entity):
+        repo = AsyncMock()
+        repo.create.return_value = _make_session_entity()
+        repo.get_messages.return_value = []
+
+        sse_lines = [
+            "data: {not valid json",
+            'data: {"choices":[{"delta":{"content":"Ok"}}]}',
+            "data: [DONE]",
+        ]
+        fake_client = _FakeClient(_FakeStreamResponse(sse_lines))
+        mock_client_cls.return_value = fake_client
+
+        service = _build_service(session_repo=repo)
+        request = ChatRequest(message="Hi")
+
+        chunks = [c async for c in service.stream_chat_response(request, mock_user_entity)]
+
+        assert len(chunks) == 2
+        parsed_first = json.loads(chunks[0].split("data: ")[1].strip())
+        assert parsed_first["content"] == "Ok"

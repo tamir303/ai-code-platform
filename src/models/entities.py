@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, UTC
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, relationship
 
@@ -15,7 +15,6 @@ class UserEntity(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     sessions = relationship("SessionEntity", back_populates="user", cascade="all, delete-orphan")
-    tasks = relationship("TaskEntity", back_populates="user", cascade="all, delete-orphan")
 
 
 class SessionEntity(Base):
@@ -44,16 +43,3 @@ class MessageEntity(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     session = relationship("SessionEntity", back_populates="messages")
-
-
-class TaskEntity(Base):
-    __tablename__ = "async_tasks"
-    id = Column(String(100), primary_key=True)  # Celery Task ID
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-    task_type = Column(String(50), nullable=False)
-    status = Column(String(30), default="PENDING")
-    result = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
-    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
-
-    user = relationship("UserEntity", back_populates="tasks")

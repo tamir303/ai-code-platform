@@ -36,16 +36,6 @@ class TestUnauthenticatedAccess:
         )
         assert resp.status_code in (401, 403)
 
-    async def test_task_create_unauthenticated(self, e2e_client):
-        resp = await e2e_client.post(
-            "/api/v1/tasks/code-review",
-            json={"files": [{"filename": "a.py", "code": "pass"}]},
-        )
-        assert resp.status_code in (401, 403)
-
-    async def test_task_status_unauthenticated(self, e2e_client):
-        resp = await e2e_client.get("/api/v1/tasks/some-id")
-        assert resp.status_code in (401, 403)
 
 
 class TestNotFoundScenarios:
@@ -64,7 +54,6 @@ class TestNotFoundScenarios:
                 created_at=FIXED_NOW,
             )
             user.sessions = []
-            user.tasks = []
             return user
 
         app.dependency_overrides[get_authenticated_user] = override_auth
@@ -78,8 +67,4 @@ class TestNotFoundScenarios:
 
     async def test_delete_nonexistent_session(self, e2e_client):
         resp = await e2e_client.delete(f"/api/v1/sessions/{uuid.uuid4()}")
-        assert resp.status_code == 404
-
-    async def test_get_nonexistent_task(self, e2e_client):
-        resp = await e2e_client.get("/api/v1/tasks/nonexistent-task-xyz")
         assert resp.status_code == 404

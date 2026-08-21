@@ -116,12 +116,19 @@ data: {"session_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901", "content": "", "is_
 
 ### List User Sessions
 
-Retrieves all chat sessions associated with the authenticated user, sorted by last updated timestamp.
+Retrieves chat sessions associated with the authenticated user with pagination, sorted by last updated timestamp in descending order.
 
 ```http
-GET /api/v1/sessions
+GET /api/v1/sessions?limit=20&offset=0
 X-API-Key: sk-your-virtual-api-key
 ```
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Validation | Description |
+|-----------|------|---------|------------|-------------|
+| `limit` | `integer` | `20` | `1 <= limit <= 100` | Maximum number of sessions to return |
+| `offset` | `integer` | `0` | `offset >= 0` | Number of sessions to skip for pagination |
 
 **Response** `200 OK`:
 ```json
@@ -139,12 +146,19 @@ X-API-Key: sk-your-virtual-api-key
 
 ### Get Session Detail & Message History
 
-Fetches a specific session along with all historical messages in chronological order.
+Fetches a specific session along with a paginated slice of historical messages in chronological order.
 
 ```http
-GET /api/v1/sessions/{session_id}
+GET /api/v1/sessions/{session_id}?limit=50&offset=0
 X-API-Key: sk-your-virtual-api-key
 ```
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Validation | Description |
+|-----------|------|---------|------------|-------------|
+| `limit` | `integer` | `50` | `1 <= limit <= 100` | Maximum number of historical messages to return |
+| `offset` | `integer` | `0` | `offset >= 0` | Number of messages to skip for pagination |
 
 **Response** `200 OK`:
 ```json
@@ -153,6 +167,9 @@ X-API-Key: sk-your-virtual-api-key
   "title": "Write a thread-safe LRU Cache in Python...",
   "created_at": "2026-08-18T09:00:00Z",
   "updated_at": "2026-08-18T09:05:30Z",
+  "total_messages": 2,
+  "limit": 50,
+  "offset": 0,
   "messages": [
     {
       "role": "user",
@@ -181,95 +198,7 @@ X-API-Key: sk-your-virtual-api-key
 
 **Response** `204 No Content` (Empty Body)
 
----
-
-## 4. Asynchronous Batch Code Review (Celery)
-
-### Submit Batch Code Review Task
-
-Submits multiple code files for deep asynchronous analysis. Evaluates AST complexity, concurrency safety, edge cases, and security vulnerabilities.
-
-```http
-POST /api/v1/tasks/code-review
-X-API-Key: sk-your-virtual-api-key
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "files": [
-    {
-      "filename": "database.py",
-      "code": "def query_user(user_id):\n    return db.execute(f'SELECT * FROM users WHERE id = {user_id}')"
-    },
-    {
-      "filename": "server.py",
-      "code": "import subprocess\ndef ping_host(host):\n    subprocess.Popen('ping ' + host, shell=True)"
-    }
-  ]
-}
-```
-
-**Response** `200 OK`:
-```json
-{
-  "task_id": "8f7e6d5c-4b3a-2109-8765-fedcba098765",
-  "status": "QUEUED",
-  "result": null
-}
-```
-
----
-
-### Poll Task Status & Results
-
-Checks task execution status. Progress is tracked dynamically via Redis, and final results are automatically written back to PostgreSQL via Celery signals.
-
-```http
-GET /api/v1/tasks/{task_id}
-X-API-Key: sk-your-virtual-api-key
-```
-
-**Response (In Progress):**
-```json
-{
-  "task_id": "8f7e6d5c-4b3a-2109-8765-fedcba098765",
-  "status": "PROGRESS",
-  "result": {
-    "current": 1,
-    "total": 2,
-    "file": "database.py"
-  }
-}
-```
-
-**Response (Completed):**
-```json
-{
-  "task_id": "8f7e6d5c-4b3a-2109-8765-fedcba098765",
-  "status": "SUCCESS",
-  "result": {
-    "status": "COMPLETED",
-    "files_analyzed": [
-      {
-        "filename": "database.py",
-        "review": "### Critical Vulnerability Detected\n- **SQL Injection**: Direct string interpolation in `db.execute`. Use parameterized queries.",
-        "status": "success"
-      },
-      {
-        "filename": "server.py",
-        "review": "### Critical Security Issue\n- **Command Injection**: `shell=True` allows shell metacharacters. Use array-based arguments.",
-        "status": "success"
-      }
-    ]
-  }
-}
-```
-
----
-
-## 5. OpenAI Compatible API (Continue.dev & IDEs)
+## 4. OpenAI Compatible API (Continue.dev & IDEs)
 
 Directly accessible via Nginx at `https://localhost/v1/*`.
 
@@ -296,7 +225,7 @@ Content-Type: application/json
 
 ---
 
-## 6. System & Infrastructure Endpoints
+## 5. System & Infrastructure Endpoints
 
 ### Health Check
 

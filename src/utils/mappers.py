@@ -22,15 +22,25 @@ class EntityMapper:
         )
 
     @staticmethod
-    def session_entity_to_detail(entity: SessionEntity) -> SessionDetailResponse:
-        messages = [
-            MessageItem(role=m.role, content=m.content, created_at=m.created_at)
-            for m in entity.messages
-        ]
+    def session_entity_to_detail(
+        entity: SessionEntity,
+        messages: list[MessageEntity] | None = None,
+        total_messages: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> SessionDetailResponse:
+        msg_list = messages if messages is not None else getattr(entity, "messages", [])
+        total = total_messages if total_messages is not None else len(msg_list)
         return SessionDetailResponse(
             id=entity.id,
             title=entity.title,
             created_at=entity.created_at,
             updated_at=entity.updated_at,
-            messages=messages
+            messages=[
+                MessageItem(role=m.role, content=m.content, created_at=m.created_at)
+                for m in msg_list
+            ],
+            total_messages=total,
+            limit=limit,
+            offset=offset,
         )

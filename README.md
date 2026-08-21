@@ -8,7 +8,6 @@ A fully self-hosted, GPU-accelerated AI coding assistant platform powered by **v
 - **SSE Streaming with Buffering Disabled** — High-throughput real-time token streaming with `proxy_buffering off` and chunked transfer optimizations.
 - **IDE & Continue.dev Native Support** — Direct OpenAI-compatible endpoint at `/v1` backed by LiteLLM virtual keys.
 - **FastAPI Code Assistant & Session Management** — Full conversation history, multi-session management, and task tracking at `/api/v1`.
-- **Batch Code Review** — Asynchronous Celery workers for AST complexity, concurrency safety, and vulnerability analysis.
 - **On-Prem GPU Inference** — High-performance vLLM engine serving Qwen2.5-Coder (or any Hugging Face model) via NVIDIA Container Toolkit.
 - **Key & Quota Management** — Provision scoped API keys with RPM/TPM limits and usage quotas.
 - **Alembic Database Migrations** — Managed relational database lifecycle for PostgreSQL with asyncpg.
@@ -23,8 +22,7 @@ A fully self-hosted, GPU-accelerated AI coding assistant platform powered by **v
 | **Reverse Proxy / Gateway** | Nginx 1.27 (Alpine) | SSL termination, path routing, SSE buffering control, security headers |
 | **Inference Engine** | vLLM (OpenAI-compatible) | High-throughput GPU inference with PagedAttention |
 | **LLM Gateway** | LiteLLM | Key management, rate limiting, model routing, caching |
-| **Backend API** | FastAPI + Uvicorn | Session orchestration, chat history, async job management |
-| **Task Queue** | Celery + Redis | Asynchronous batch code analysis workers |
+| **Backend API** | FastAPI + Uvicorn | Session orchestration, chat history, code completion |
 | **Database** | PostgreSQL 16 + asyncpg | Persistent data store for users, sessions, messages, and tasks |
 | **Database Migrations** | Alembic | Version-controlled schema migrations |
 | **Cache & Broker** | Redis Stack | Task broker, result backend, and LLM cache |
@@ -216,10 +214,9 @@ docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d
 ```
 
 ### Production Hardening Highlights:
-- **Port Isolation:** Only ports 80 & 443 are exposed. Database, Redis, Celery, and internal API services are sealed inside the Docker network.
+- **Port Isolation:** Only ports 80 & 443 are exposed. Database, Redis, and internal API services are sealed inside the Docker network.
 - **HTTP/2 & HSTS:** Enforced via `nginx.prod.conf`.
 - **Dynamic Domain Substitution:** Nginx configuration uses `envsubst` to dynamically populate `NGINX_HOST`.
-- **Production Workers:** Celery worker concurrency scaled to 8 workers.
 - **Dedicated Data Volumes:** Persistent data mounted under `/opt/data/`.
 
 ---
@@ -233,7 +230,41 @@ Verify complete GPU passthrough and driver health at any time:
 
 ---
 
+## CI/CD
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on push and pull
+requests to `main`, and can be triggered manually via **workflow_dispatch**.
+
+| Job | Runs on | What it does |
+|-----|---------|--------------|
+| **test** | every push & PR | Unit + integration suites on Python 3.14, gated at `--cov-fail-under=100`. No external services. ~2 min. |
+| **e2e** | push to `main`, manual | Builds the CPU vLLM image, serves `Qwen2.5-Coder-0.5B-Instruct` behind LiteLLM, and runs the whole suite against **real inference**. |
+| **publish** | push to `main` | Builds the app image and pushes it to `ghcr.io/<owner>/<repo>` tagged `latest` and the commit SHA. |
+
+### Required repository secret
+
+| Secret | Purpose |
+|--------|---------|
+| `HF_TOKEN` | Hugging Face token used by `vllm-test` to download model weights. Without it the download is unauthenticated and may be rate limited. Set it under **Settings → Secrets and variables → Actions**. |
+
+`GITHUB_TOKEN` is provided automatically and is what `publish` uses to
+authenticate against GHCR.
+
+> **Why `e2e` is skipped on pull requests.** vLLM has no official CPU image, so
+> the job compiles it from source — that is the better part of an hour and needs
+> a disk-cleanup step to fit on a stock runner. Running it on every PR would be
+> disproportionate. Trigger it manually on a PR that touches inference, or rely
+> on the `main` run. To make it cheaper, publish the built vLLM image to GHCR
+> once and have `docker-compose.test.yaml` pull it instead of building.
+
+> **Deployment target.** `publish` produces a versioned image but deliberately
+> stops there — no environment is deployed to, since the target is
+> infrastructure-specific. Wire a deploy job onto `publish` once you have one.
+
+---
+
 ## Documentation Links
 
 - **[API Reference (API.md)](API.md)** — Complete endpoint specifications, schemas, error codes, and SSE streaming payload details.
 - **[System Architecture (ARCHITECTURE.md)](ARCHITECTURE.md)** — Deep dive into service interactions, Nginx buffering control, layered design, and data models.
+- **[Testing Guide (TESTS.md)](TESTS.md)** — Unit, integration, and E2E test suites, coverage reports, and Dockerized test workflows.

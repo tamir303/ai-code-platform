@@ -8,8 +8,36 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
+import httpx
+from src.config.settings import get_settings
 from src.models.entities import Base
 from src.di.container import get_db_session
+
+
+# ---------------------------------------------------------------------------
+# Live inference stack guard
+# ---------------------------------------------------------------------------
+@pytest_asyncio.fixture(autouse=True)
+async def _require_live_inference_stack():
+    """
+    E2E tests exercise real LiteLLM/vLLM calls. Fail fast and clearly if that
+    stack isn't reachable, rather than letting individual tests fail deep
+    inside an httpx call with a bare connection-refused trace.
+    """
+    settings = get_settings()
+    url = f"{settings.LITELLM_URL}/health/liveliness"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+    except Exception as exc:
+        pytest.fail(
+            f"Live inference stack unreachable at {url}. E2E tests require a "
+            f"running litellm-test/vllm-test stack — run "
+            f"`docker compose -f docker-compose.test.yaml up`. Original error: {exc}",
+            pytrace=False,
+        )
+    yield
 
 
 # ---------------------------------------------------------------------------
