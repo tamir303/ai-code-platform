@@ -135,6 +135,16 @@ class TestCompleteUserJourney:
         assert isinstance(completion, str)
         assert len(completion) > 0
 
+        # The completion must fill only the hole it was given. Without stop
+        # tokens the model runs on past the fill and returns whole unrelated
+        # functions until it hits max_tokens, so assert it stopped at the
+        # block boundary rather than merely returning something non-empty.
+        assert "def " not in completion, f"completion ran past the fill: {completion!r}"
+        assert "\n\n" not in completion, f"completion crossed a blank line: {completion!r}"
+        assert not any(
+            tok in completion for tok in ("<|fim_", "<|endoftext|>")
+        ), f"special token leaked into completion: {completion!r}"
+
         # -- Step 6: POST /tasks/code-review → task enqueued --
         mock_job = MagicMock()
         mock_job.id = "journey-task-001"
