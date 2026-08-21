@@ -230,6 +230,39 @@ Verify complete GPU passthrough and driver health at any time:
 
 ---
 
+## CI/CD
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on push and pull
+requests to `main`, and can be triggered manually via **workflow_dispatch**.
+
+| Job | Runs on | What it does |
+|-----|---------|--------------|
+| **test** | every push & PR | Unit + integration suites on Python 3.14, gated at `--cov-fail-under=100`. No external services. ~2 min. |
+| **e2e** | push to `main`, manual | Builds the CPU vLLM image, serves `Qwen2.5-Coder-0.5B-Instruct` behind LiteLLM, and runs the whole suite against **real inference**. |
+| **publish** | push to `main` | Builds the app image and pushes it to `ghcr.io/<owner>/<repo>` tagged `latest` and the commit SHA. |
+
+### Required repository secret
+
+| Secret | Purpose |
+|--------|---------|
+| `HF_TOKEN` | Hugging Face token used by `vllm-test` to download model weights. Without it the download is unauthenticated and may be rate limited. Set it under **Settings → Secrets and variables → Actions**. |
+
+`GITHUB_TOKEN` is provided automatically and is what `publish` uses to
+authenticate against GHCR.
+
+> **Why `e2e` is skipped on pull requests.** vLLM has no official CPU image, so
+> the job compiles it from source — that is the better part of an hour and needs
+> a disk-cleanup step to fit on a stock runner. Running it on every PR would be
+> disproportionate. Trigger it manually on a PR that touches inference, or rely
+> on the `main` run. To make it cheaper, publish the built vLLM image to GHCR
+> once and have `docker-compose.test.yaml` pull it instead of building.
+
+> **Deployment target.** `publish` produces a versioned image but deliberately
+> stops there — no environment is deployed to, since the target is
+> infrastructure-specific. Wire a deploy job onto `publish` once you have one.
+
+---
+
 ## Documentation Links
 
 - **[API Reference (API.md)](API.md)** — Complete endpoint specifications, schemas, error codes, and SSE streaming payload details.
