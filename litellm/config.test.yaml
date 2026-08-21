@@ -7,6 +7,10 @@ model_list:
 
 general_settings:
   master_key: "os.environ/LITELLM_MASTER_KEY"
+  # Required for /key/generate: virtual keys are persisted, and without a DB the
+  # endpoint returns 500 "DB not connected". The e2e journey provisions a real
+  # key through this path, so the test proxy needs a database just like dev.
+  database_url: "os.environ/DATABASE_URL"
 
 litellm_settings:
   drop_params: true
