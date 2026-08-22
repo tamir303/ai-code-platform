@@ -4,22 +4,12 @@ Unit tests for EntityMapper utility.
 import pytest
 
 from src.utils.mappers import EntityMapper
-from src.schemas.user import UserResponse
 from src.schemas.session import SessionResponse, SessionDetailResponse, MessageItem
-from tests.conftest import TEST_USER_ID, TEST_SESSION_ID, TEST_MESSAGE_ID, TEST_USERNAME, TEST_API_KEY, FIXED_NOW
+from tests.conftest import TEST_SESSION_ID, TEST_MESSAGE_ID, FIXED_NOW
 
 
 pytestmark = pytest.mark.unit
 
-
-class TestUserEntityToSchema:
-    def test_maps_all_fields(self, mock_user_entity):
-        result = EntityMapper.user_entity_to_schema(mock_user_entity)
-
-        assert isinstance(result, UserResponse)
-        assert result.id == TEST_USER_ID
-        assert result.username == TEST_USERNAME
-        assert result.api_key == TEST_API_KEY
 
 
 class TestSessionEntityToSummary:

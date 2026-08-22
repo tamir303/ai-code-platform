@@ -18,16 +18,13 @@ services:
       - NCCL_P2P_DISABLE=0
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
       - VLLM_NO_USAGE_STATS=1
+      - VLLM_WSL2_ENABLE_PIN_MEMORY=1
     volumes:
       - ./data/hf_cache:/root/.cache/huggingface
     command: >
-      --model ${VLLM_MODEL:-Qwen/Qwen2.5-Coder-7B-Instruct}
-      --served-model-name qwen-coder
-      --gpu-memory-utilization ${VLLM_GPU_MEM_UTIL:-0.88}
-      --max-model-len ${VLLM_MAX_MODEL_LEN:-8192}
-      --port 8000
+      --model ${VLLM_MODEL:-Qwen/Qwen2.5-Coder-1.5B-Instruct} --served-model-name qwen-coder --gpu-memory-utilization ${VLLM_GPU_MEM_UTIL:-0.88} --max-model-len ${VLLM_MAX_MODEL_LEN:-8192} --port 8000
     healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      test: [ "CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\"" ]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -60,7 +57,6 @@ services:
     volumes:
       - ./litellm/config.yaml:/app/config.yaml:ro
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
     command: [ "--config", "/app/config.yaml", "--port", "4000" ]
     depends_on:

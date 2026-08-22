@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends
 from src.schemas.chat import ChatRequest
 from src.controller.chat_controller import ChatController
-from src.di.container import get_chat_controller, get_authenticated_user
-from src.models.entities import UserEntity
+from src.di.container import get_chat_controller
 
 router = APIRouter(prefix="/chat", tags=["Code Assistant Chat"])
 
@@ -10,11 +9,11 @@ router = APIRouter(prefix="/chat", tags=["Code Assistant Chat"])
 @router.post("")
 async def stream_chat(
     req: ChatRequest,
-    user: UserEntity = Depends(get_authenticated_user),
     controller: ChatController = Depends(get_chat_controller)
 ):
     """
     Initiates SSE streaming response for code questions or refactoring.
-    User only needs to send: {"message": "..."}
+    Send: {"message": "..."} and optionally {"session_id": "..."} to continue
+    an existing conversation.
     """
-    return await controller.handle_chat_stream(req, user)
+    return await controller.handle_chat_stream(req)

@@ -103,7 +103,7 @@ location /api/v1/ {
 - **Global Error Handling:** Middleware intercepts unhandled exceptions, logs tracebacks, and outputs uniform JSON errors.
 
 ### D. PostgreSQL & Alembic
-- **Role:** Primary transactional database for users, chat sessions, and message histories.
+- **Role:** Primary transactional database for chat sessions and message histories.
 - **Migrations:** Automated on startup via `alembic upgrade head` inside container entrypoints.
 
 ### E. Observability (Prometheus & Grafana)
@@ -120,7 +120,7 @@ location /api/v1/ {
                              ▼
   ┌───────────────────────────────────────────────────────┐
   │                      API Routes                       │
-  │      src/routes/{auth,chat,session,task}_routes.py    │
+  │      src/routes/{chat,session}_routes.py    │
   └──────────────────────────┬────────────────────────────┘
                              │
                              ▼
@@ -167,7 +167,7 @@ location /api/v1/ {
 Client              Nginx               FastAPI            Postgres             LiteLLM               vLLM (GPU)
   │                   │                    │                   │                   │                      │
   │──POST /chat──────►│──proxy_pass───────►│                   │                   │                      │
-  │   (X-API-Key)     │   (buffering off)  │──Authenticate────►│                   │                      │
+  │                   │   (buffering off)  │                   │                   │                      │
   │                   │                    │──Get/Create Ses──►│                   │                      │
   │                   │                    │──Save User Msg───►│                   │                      │
   │                   │                    │──Stream Tokens───────────────────────►│──Forward to GPU─────►│
@@ -179,7 +179,7 @@ Client              Nginx               FastAPI            Postgres             
   │◄──is_done: true───│◄───────────────────│                   │                   │                      │
 ```
 
-### 2. Continue.dev IDE Autocomplete / Chat (`POST /v1/chat/completions`)
+### 2. Continue.dev IDE Autocomplete / Chat (`POST /v1/chat/completions`, LiteLLM passthrough)
 
 ```
 IDE (Continue.dev)        Nginx                    LiteLLM                     vLLM (GPU)
@@ -194,38 +194,6 @@ IDE (Continue.dev)        Nginx                    LiteLLM                     v
 ## 6. Relational Entity Schema
 
 ```
-┌───────────────────────────┐
-│           users           │
-├───────────────────────────┤
-│ id: UUID (PK)             │
-│ username: VARCHAR(50) [UQ]│
-│ api_key: VARCHAR(100) [UQ]│
-│ created_at: TIMESTAMP     │
-└─────────────┬─────────────┘
-              │ 1:N
-              ├─────────────────────────────────────────┐
-              │                                         │
-              ▼ 1:N                                     ▼ 1:N
-┌───────────────────────────┐             ┌───────────────────────────┐
-│       chat_sessions       │             │        async_tasks        │
-├───────────────────────────┤             ├───────────────────────────┤
-│ id: UUID (PK)             │             │ id: VARCHAR(100) (PK)     │
-│ user_id: UUID (FK)        │             │ user_id: UUID (FK)        │
-│ title: VARCHAR(255)       │             │ task_type: VARCHAR(50)    │
-│ created_at: TIMESTAMP     │             │ status: VARCHAR(30)       │
-│ updated_at: TIMESTAMP     │             │ result: JSON              │
-└─────────────┬─────────────┘             │ created_at: TIMESTAMP     │
-              │ 1:N                       │ updated_at: TIMESTAMP     │
-              ▼                           └───────────────────────────┘
-┌───────────────────────────┐
-│       chat_messages       │
-├───────────────────────────┤
-│ id: UUID (PK)             │
-│ session_id: UUID (FK)     │
-│ role: VARCHAR(20)         │
-│ content: TEXT             │
-│ created_at: TIMESTAMP     │
-└───────────────────────────┘
 ```
 
 ---

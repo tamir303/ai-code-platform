@@ -59,7 +59,6 @@ services:
     volumes:
       - ./litellm/config.yaml:/app/config.yaml:ro
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
     command: [ "--config", "/app/config.yaml", "--port", "4000" ]
     depends_on:

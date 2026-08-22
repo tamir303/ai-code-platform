@@ -7,9 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from src.schemas.chat import ChatRequest, ChatChunkResponse
-from src.schemas.user import UserCreateRequest, UserResponse
 from src.schemas.session import MessageItem, SessionResponse, SessionDetailResponse
-from src.schemas.autocomplete import AutocompleteRequest, AutocompleteResponse
 
 
 pytestmark = pytest.mark.unit
@@ -47,26 +45,6 @@ class TestChatChunkResponse:
 
 
 
-# ---------------------------------------------------------------------------
-# UserCreateRequest / UserResponse
-# ---------------------------------------------------------------------------
-class TestUserCreateRequest:
-    def test_valid(self):
-        req = UserCreateRequest(username="alice")
-        assert req.username == "alice"
-
-    def test_missing_username_raises(self):
-        with pytest.raises(ValidationError):
-            UserCreateRequest()
-
-
-class TestUserResponse:
-    def test_valid(self):
-        uid = uuid.uuid4()
-        resp = UserResponse(id=uid, username="bob", api_key="sk-abc")
-        assert resp.id == uid
-
-
 
 # ---------------------------------------------------------------------------
 # Session schemas
@@ -88,27 +66,3 @@ class TestSessionSchemas:
         assert resp.offset == 0
 
 
-# ---------------------------------------------------------------------------
-# Autocomplete schemas
-# ---------------------------------------------------------------------------
-class TestAutocompleteRequest:
-    def test_valid_with_all_fields(self):
-        req = AutocompleteRequest(prefix="def add(a, b):\n    ", suffix="\n", language="python")
-        assert req.prefix == "def add(a, b):\n    "
-        assert req.suffix == "\n"
-        assert req.language == "python"
-
-    def test_suffix_and_language_default(self):
-        req = AutocompleteRequest(prefix="def add(a, b):\n    ")
-        assert req.suffix == ""
-        assert req.language is None
-
-    def test_missing_prefix_raises(self):
-        with pytest.raises(ValidationError):
-            AutocompleteRequest()
-
-
-class TestAutocompleteResponse:
-    def test_valid(self):
-        resp = AutocompleteResponse(completion="return a + b")
-        assert resp.completion == "return a + b"

@@ -1,16 +1,8 @@
-from src.models.entities import UserEntity, SessionEntity, MessageEntity
-from src.schemas.user import UserResponse
+from src.models.entities import SessionEntity, MessageEntity
 from src.schemas.session import SessionResponse, SessionDetailResponse, MessageItem
 
 
 class EntityMapper:
-    @staticmethod
-    def user_entity_to_schema(entity: UserEntity) -> UserResponse:
-        return UserResponse(
-            id=entity.id,
-            username=entity.username,
-            api_key=entity.api_key
-        )
 
     @staticmethod
     def session_entity_to_summary(entity: SessionEntity) -> SessionResponse:

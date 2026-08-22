@@ -13,7 +13,6 @@ from unittest.mock import patch
 from sqlalchemy.future import select
 
 from src.models.entities import SessionEntity, MessageEntity
-from tests.conftest import TEST_USER_ID
 from tests.integration.conftest import TestSessionLocal
 
 
@@ -55,12 +54,12 @@ _SSE_LINES = [
 class TestChatStream:
     @patch("src.services.implementations.chat_service.httpx.AsyncClient")
     async def test_streams_and_persists_session_and_messages(
-        self, mock_client_cls, authenticated_client, seeded_user
+        self, mock_client_cls, client
     ):
         """POST /api/v1/chat auto-creates a session and persists both turns."""
         mock_client_cls.return_value = _FakeChatClient(_SSE_LINES)
 
-        resp = await authenticated_client.post(
+        resp = await client.post(
             "/api/v1/chat",
             json={"message": "Write a hello world function"},
         )
@@ -80,7 +79,7 @@ class TestChatStream:
         # The real repository wrote a session and both messages.
         async with TestSessionLocal() as session:
             row = (await session.execute(
-                select(SessionEntity).where(SessionEntity.user_id == TEST_USER_ID)
+                select(SessionEntity)
             )).scalar_one()
             assert str(row.id) == session_id
             assert row.title == "Write a hello world function"
@@ -95,13 +94,13 @@ class TestChatStream:
 
     @patch("src.services.implementations.chat_service.httpx.AsyncClient")
     async def test_unknown_session_id_auto_heals(
-        self, mock_client_cls, authenticated_client, seeded_user
+        self, mock_client_cls, client
     ):
         """A session_id that doesn't exist creates a fresh session rather than 404ing."""
         mock_client_cls.return_value = _FakeChatClient(_SSE_LINES)
         missing_id = "11111111-1111-1111-1111-111111111111"
 
-        resp = await authenticated_client.post(
+        resp = await client.post(
             "/api/v1/chat",
             json={"message": "Recover please", "session_id": missing_id},
         )
@@ -110,7 +109,3 @@ class TestChatStream:
         first = json.loads(resp.text.strip().split("\n\n")[0][6:])
         assert first["session_id"] != missing_id
 
-    async def test_unauthenticated_rejected(self, client):
-        resp = await client.post("/api/v1/chat", json={"message": "hi"})
-
-        assert resp.status_code in (401, 403)

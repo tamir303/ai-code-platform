@@ -17,8 +17,8 @@ class TestHealthCheck:
         assert data["status"] == "HEALTHY"
         assert "env" in data
 
-    async def test_health_no_auth_required(self, client):
-        """Health endpoint should work without authentication."""
+    async def test_health_available(self, client):
+        """Health endpoint reports the running environment."""
         resp = await client.get("/health")
 
         assert resp.status_code == 200

@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.services.implementations.chat_service import ChatService
 from src.schemas.chat import ChatRequest
-from tests.conftest import TEST_USER_ID, TEST_SESSION_ID, FIXED_NOW
+from tests.conftest import TEST_SESSION_ID, FIXED_NOW
 
 
 pytestmark = pytest.mark.unit
@@ -27,11 +27,10 @@ def _build_service(session_repo=None, settings=None):
     return ChatService(session_repo, settings)
 
 
-def _make_session_entity(session_id=TEST_SESSION_ID, user_id=TEST_USER_ID):
+def _make_session_entity(session_id=TEST_SESSION_ID):
     from src.models.entities import SessionEntity
     s = SessionEntity(
         id=session_id,
-        user_id=user_id,
         title="Test",
         created_at=FIXED_NOW,
         updated_at=FIXED_NOW,
@@ -86,7 +85,7 @@ class _FakeClient:
 # ---------------------------------------------------------------------------
 class TestSessionResolution:
     @patch("src.services.implementations.chat_service.httpx.AsyncClient")
-    async def test_creates_new_session_when_no_id(self, mock_client_cls, mock_user_entity):
+    async def test_creates_new_session_when_no_id(self, mock_client_cls):
         new_session = _make_session_entity()
         repo = AsyncMock()
         repo.create.return_value = new_session
@@ -105,15 +104,13 @@ class TestSessionResolution:
         request = ChatRequest(message="Hello AI")
 
         chunks = []
-        async for chunk in service.stream_chat_response(request, mock_user_entity):
+        async for chunk in service.stream_chat_response(request):
             chunks.append(chunk)
 
-        repo.create.assert_awaited_once()
-        call_args = repo.create.call_args
-        assert (call_args.kwargs.get("title") == "Hello AI") or (len(call_args.args) > 1 and call_args.args[1] == "Hello AI")
+        repo.create.assert_awaited_once_with("Hello AI")
 
     @patch("src.services.implementations.chat_service.httpx.AsyncClient")
-    async def test_uses_existing_session(self, mock_client_cls, mock_user_entity):
+    async def test_uses_existing_session(self, mock_client_cls):
         existing = _make_session_entity()
         repo = AsyncMock()
         repo.get_by_id.return_value = existing
@@ -127,14 +124,14 @@ class TestSessionResolution:
         service = _build_service(session_repo=repo)
         request = ChatRequest(message="Hi", session_id=TEST_SESSION_ID)
 
-        async for _ in service.stream_chat_response(request, mock_user_entity):
+        async for _ in service.stream_chat_response(request):
             pass
 
-        repo.get_by_id.assert_awaited_once_with(TEST_SESSION_ID, mock_user_entity.id)
+        repo.get_by_id.assert_awaited_once_with(TEST_SESSION_ID)
         repo.create.assert_not_awaited()
 
     @patch("src.services.implementations.chat_service.httpx.AsyncClient")
-    async def test_auto_heals_missing_session(self, mock_client_cls, mock_user_entity):
+    async def test_auto_heals_missing_session(self, mock_client_cls):
         repo = AsyncMock()
         repo.get_by_id.return_value = None  # session not found
         new_session = _make_session_entity()
@@ -149,7 +146,7 @@ class TestSessionResolution:
         service = _build_service(session_repo=repo)
         request = ChatRequest(message="Hi", session_id=TEST_SESSION_ID)
 
-        async for _ in service.stream_chat_response(request, mock_user_entity):
+        async for _ in service.stream_chat_response(request):
             pass
 
         # Should create new session since the provided ID wasn't found
@@ -161,7 +158,7 @@ class TestSessionResolution:
 # ---------------------------------------------------------------------------
 class TestMessageHandling:
     @patch("src.services.implementations.chat_service.httpx.AsyncClient")
-    async def test_appends_user_message(self, mock_client_cls, mock_user_entity):
+    async def test_appends_user_message(self, mock_client_cls):
         repo = AsyncMock()
         repo.create.return_value = _make_session_entity()
         repo.get_messages.return_value = [_make_message_entity()]
@@ -174,14 +171,14 @@ class TestMessageHandling:
         service = _build_service(session_repo=repo)
         request = ChatRequest(message="Write a function")
 
-        async for _ in service.stream_chat_response(request, mock_user_entity):
+        async for _ in service.stream_chat_response(request):
             pass
 
         # First call to append_message should be the user message
         repo.append_message.assert_any_await(TEST_SESSION_ID, "user", "Write a function")
 
     @patch("src.services.implementations.chat_service.httpx.AsyncClient")
-    async def test_persists_assistant_response(self, mock_client_cls, mock_user_entity):
+    async def test_persists_assistant_response(self, mock_client_cls):
         repo = AsyncMock()
         repo.create.return_value = _make_session_entity()
         repo.get_messages.return_value = [_make_message_entity()]
@@ -198,7 +195,7 @@ class TestMessageHandling:
         service = _build_service(session_repo=repo)
         request = ChatRequest(message="Write a function")
 
-        async for _ in service.stream_chat_response(request, mock_user_entity):
+        async for _ in service.stream_chat_response(request):
             pass
 
         # Should persist the accumulated assistant response
@@ -210,7 +207,7 @@ class TestMessageHandling:
 # ---------------------------------------------------------------------------
 class TestSSEOutput:
     @patch("src.services.implementations.chat_service.httpx.AsyncClient")
-    async def test_yields_sse_chunks(self, mock_client_cls, mock_user_entity):
+    async def test_yields_sse_chunks(self, mock_client_cls):
         repo = AsyncMock()
         repo.create.return_value = _make_session_entity()
         repo.get_messages.return_value = []
@@ -227,7 +224,7 @@ class TestSSEOutput:
         request = ChatRequest(message="Hi")
 
         chunks = []
-        async for chunk in service.stream_chat_response(request, mock_user_entity):
+        async for chunk in service.stream_chat_response(request):
             chunks.append(chunk)
 
         # Should have at least the content chunk + final done chunk
@@ -245,7 +242,7 @@ class TestSSEOutput:
 
 class TestMalformedSSEChunks:
     @patch("src.services.implementations.chat_service.httpx.AsyncClient")
-    async def test_skips_non_data_lines(self, mock_client_cls, mock_user_entity):
+    async def test_skips_non_data_lines(self, mock_client_cls):
         repo = AsyncMock()
         repo.create.return_value = _make_session_entity()
         repo.get_messages.return_value = []
@@ -262,14 +259,14 @@ class TestMalformedSSEChunks:
         service = _build_service(session_repo=repo)
         request = ChatRequest(message="Hi")
 
-        chunks = [c async for c in service.stream_chat_response(request, mock_user_entity)]
+        chunks = [c async for c in service.stream_chat_response(request)]
 
         assert len(chunks) == 2
         parsed_first = json.loads(chunks[0].split("data: ")[1].strip())
         assert parsed_first["content"] == "Hi"
 
     @patch("src.services.implementations.chat_service.httpx.AsyncClient")
-    async def test_skips_malformed_json_chunk(self, mock_client_cls, mock_user_entity):
+    async def test_skips_malformed_json_chunk(self, mock_client_cls):
         repo = AsyncMock()
         repo.create.return_value = _make_session_entity()
         repo.get_messages.return_value = []
@@ -285,7 +282,7 @@ class TestMalformedSSEChunks:
         service = _build_service(session_repo=repo)
         request = ChatRequest(message="Hi")
 
-        chunks = [c async for c in service.stream_chat_response(request, mock_user_entity)]
+        chunks = [c async for c in service.stream_chat_response(request)]
 
         assert len(chunks) == 2
         parsed_first = json.loads(chunks[0].split("data: ")[1].strip())

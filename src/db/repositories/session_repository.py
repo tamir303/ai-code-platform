@@ -11,26 +11,25 @@ class PostgresSessionRepository(ISessionRepository):
     def __init__(self, db: AsyncSession):
         self._db = db
 
-    async def create(self, user_id: UUID, title: str) -> SessionEntity:
-        session = SessionEntity(user_id=user_id, title=title)
+    async def create(self, title: str) -> SessionEntity:
+        session = SessionEntity(title=title)
         self._db.add(session)
         await self._db.commit()
         await self._db.refresh(session)
         return session
 
-    async def get_by_id(self, session_id: UUID, user_id: UUID) -> SessionEntity | None:
+    async def get_by_id(self, session_id: UUID) -> SessionEntity | None:
         stmt = (
             select(SessionEntity)
-            .where(SessionEntity.id == session_id, SessionEntity.user_id == user_id)
+            .where(SessionEntity.id == session_id)
             .options(selectinload(SessionEntity.messages))
         )
         res = await self._db.execute(stmt)
         return res.scalar_one_or_none()
 
-    async def list_by_user(self, user_id: UUID, limit: int = 20, offset: int = 0) -> list[SessionEntity]:
+    async def list_all(self, limit: int = 20, offset: int = 0) -> list[SessionEntity]:
         stmt = (
             select(SessionEntity)
-            .where(SessionEntity.user_id == user_id)
             .order_by(SessionEntity.updated_at.desc())
             .offset(offset)
             .limit(limit)
@@ -62,8 +61,8 @@ class PostgresSessionRepository(ISessionRepository):
         res = await self._db.execute(stmt)
         return res.scalar() or 0
 
-    async def delete(self, session_id: UUID, user_id: UUID) -> bool:
-        session = await self.get_by_id(session_id, user_id)
+    async def delete(self, session_id: UUID) -> bool:
+        session = await self.get_by_id(session_id)
         if not session:
             return False
         await self._db.delete(session)

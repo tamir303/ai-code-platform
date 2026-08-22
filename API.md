@@ -11,7 +11,7 @@ The AI Code Platform is accessible over HTTPS through the unified Nginx gateway:
 
 | Prefix / Path | Upstream Service | Protocol & Auth |
 |---------------|------------------|-----------------|
-| `/api/v1/*` | FastAPI Backend (`:8080`) | HTTPS (REST + SSE), `X-API-Key` header |
+| `/api/v1/*` | FastAPI Backend (`:8080`) | HTTPS (REST + SSE), no authentication |
 | `/v1/*` | LiteLLM Proxy (`:4000`) | HTTPS (OpenAI API), `Bearer <key>` or `Authorization` header |
 | `/key/*` | LiteLLM Proxy (`:4000`) | HTTPS, Master Key (`Bearer <LITELLM_MASTER_KEY>`) |
 | `/grafana/*` | Grafana (`:3000`) | HTTPS, Basic Auth / Cookie session |
@@ -19,60 +19,7 @@ The AI Code Platform is accessible over HTTPS through the unified Nginx gateway:
 | `/docs`, `/redoc` | FastAPI Backend (`:8080`) | HTTPS, Public |
 | `/metrics` | FastAPI Backend (`:8080`) | HTTPS, Prometheus scrape format |
 
----
-
-## 1. Authentication & Key Management
-
-### Provision a User & Virtual Key
-
-Creates a new user in PostgreSQL and provisions a virtual key in LiteLLM with pre-configured rate limits (RPM: 120, TPM: 200,000).
-
-```http
-POST /api/v1/auth/provision
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "username": "developer-1"
-}
-```
-
-**Response** `201 Created`:
-```json
-{
-  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "username": "developer-1",
-  "api_key": "sk-your-virtual-api-key"
-}
-```
-
-> **Security Note:** Store the generated `api_key` securely. It serves both as the `X-API-Key` header for the platform API and as the `Bearer` token for OpenAI-compatible tools like Continue.dev.
-
----
-
-### Get Current User Profile
-
-Retrieves profile and authentication metadata for the active API key.
-
-```http
-GET /api/v1/auth/me
-X-API-Key: sk-your-virtual-api-key
-```
-
-**Response** `200 OK`:
-```json
-{
-  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "username": "developer-1",
-  "api_key": "sk-your-virtual-api-key"
-}
-```
-
----
-
-## 2. Platform Code Assistant (Streaming Chat)
+## 1. Platform Code Assistant (Streaming Chat)
 
 ### Stream Chat Response
 
@@ -82,7 +29,6 @@ Sends a prompt to the AI assistant with persistent multi-turn session tracking. 
 
 ```http
 POST /api/v1/chat
-X-API-Key: sk-your-virtual-api-key
 Content-Type: application/json
 ```
 
@@ -112,15 +58,14 @@ data: {"session_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901", "content": "", "is_
 
 ---
 
-## 3. Chat Session Management
+## 2. Chat Session Management
 
-### List User Sessions
+### List Sessions
 
 Retrieves chat sessions associated with the authenticated user with pagination, sorted by last updated timestamp in descending order.
 
 ```http
 GET /api/v1/sessions?limit=20&offset=0
-X-API-Key: sk-your-virtual-api-key
 ```
 
 **Query Parameters:**
@@ -150,7 +95,6 @@ Fetches a specific session along with a paginated slice of historical messages i
 
 ```http
 GET /api/v1/sessions/{session_id}?limit=50&offset=0
-X-API-Key: sk-your-virtual-api-key
 ```
 
 **Query Parameters:**
@@ -193,12 +137,11 @@ Permanently removes a session and cascades deletion to all associated messages.
 
 ```http
 DELETE /api/v1/sessions/{session_id}
-X-API-Key: sk-your-virtual-api-key
 ```
 
 **Response** `204 No Content` (Empty Body)
 
-## 4. OpenAI Compatible API (Continue.dev & IDEs)
+## 3. OpenAI Compatible API (Continue.dev & IDEs)
 
 Directly accessible via Nginx at `https://localhost/v1/*`.
 
@@ -225,7 +168,7 @@ Content-Type: application/json
 
 ---
 
-## 5. System & Infrastructure Endpoints
+## 4. System & Infrastructure Endpoints
 
 ### Health Check
 
@@ -251,14 +194,27 @@ Returns standard OpenMetrics/Prometheus formatted time-series data.
 
 ---
 
+## Authentication
+
+The platform API (`/api/v1/*`) has **no authentication**. This is a single-user
+local deployment: there is one implicit user and every session belongs to them.
+
+The LiteLLM passthrough (`/v1/*`) is separate and still expects
+`Authorization: Bearer <LITELLM_MASTER_KEY>` — that is LiteLLM's own auth, used
+by Continue.dev and any other OpenAI-compatible client.
+
+> Because `/api/v1/*` is unauthenticated, anything that can reach the gateway can
+> read and delete all chat history. Keep the host's port 80/443 bound to
+> localhost, or put a guard in front of it before exposing it to a network.
+
+---
+
 ## Error Codes Reference
 
 | HTTP Status | Error Type | Cause |
 |-------------|------------|-------|
 | `400 Bad Request` | Bad Request | Malformed payload or validation error |
-| `401 Unauthorized` | Unauthorized | Missing `X-API-Key` or `Bearer` authentication header |
-| `403 Forbidden` | Forbidden | Invalid, expired, or rate-limited API key |
-| `404 Not Found` | Not Found | Session, task, or resource not found |
+| `404 Not Found` | Not Found | Session not found |
 | `422 Unprocessable Entity` | Schema Error | Pydantic model validation failure |
 | `500 Internal Server Error` | Server Error | Unhandled exception (traceback logged, generic JSON returned) |
 | `502 Bad Gateway` | Gateway Error | Upstream container (backend / vLLM / litellm) initializing or down |

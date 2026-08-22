@@ -4,7 +4,6 @@ from uuid import UUID
 import httpx
 from src.services.interfaces.services import IChatService
 from src.db.interfaces.repositories import ISessionRepository
-from src.models.entities import UserEntity
 from src.schemas.chat import ChatRequest
 from src.config.settings import AppSettings
 from src.utils.sse import format_sse_event
@@ -15,23 +14,21 @@ class ChatService(IChatService):
         self._session_repo = session_repo
         self._settings = settings
 
-    async def stream_chat_response(
-        self, request: ChatRequest, user: UserEntity
-    ) -> AsyncGenerator[str, None]:
+    async def stream_chat_response(self, request: ChatRequest) -> AsyncGenerator[str, None]:
         # 1. Resolve or Create Session automatically
         session_id: UUID
         if request.session_id:
-            existing = await self._session_repo.get_by_id(request.session_id, user.id)
+            existing = await self._session_repo.get_by_id(request.session_id)
             if not existing:
                 # Auto-heal by creating new if missing
                 auto_title = request.message[:35] + ("..." if len(request.message) > 35 else "")
-                new_session = await self._session_repo.create(user.id, auto_title)
+                new_session = await self._session_repo.create(auto_title)
                 session_id = new_session.id
             else:
                 session_id = existing.id
         else:
             auto_title = request.message[:35] + ("..." if len(request.message) > 35 else "")
-            new_session = await self._session_repo.create(user.id, auto_title)
+            new_session = await self._session_repo.create(auto_title)
             session_id = new_session.id
 
         # 2. Append User Message
@@ -51,7 +48,7 @@ class ChatService(IChatService):
                 "POST",
                 f"{self._settings.LITELLM_URL}/v1/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {user.api_key}",
+                    "Authorization": f"Bearer {self._settings.LITELLM_MASTER_KEY}",
                     "Content-Type": "application/json"
                 },
                 json={

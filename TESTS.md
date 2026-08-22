@@ -10,20 +10,20 @@ The testing strategy follows a tiered pyramid designed for high confidence, sub-
 
 ```
                   ┌──────────────────────┐
-                  │      E2E Tests       │   (7 tests)
+                  │      E2E Tests       │   (6 tests)
                   │  Real vLLM/LiteLLM   │
                   ├──────────────────────┤
-                  │  Integration Tests   │   (22 tests)
+                  │  Integration Tests   │   (13 tests)
                   │ FastAPI + SQLite DB  │
                   ├──────────────────────┤
-                  │      Unit Tests      │   (69 tests)
+                  │      Unit Tests      │   (45 tests)
                   │ Pure Business Logic  │
                   └──────────────────────┘
 ```
 
 1. **Unit Tests (`tests/unit/`)** — Fast, isolated tests for pure business logic. All database calls and HTTP requests to LiteLLM are mocked. No database or network connection required.
 2. **Integration Tests (`tests/integration/`)** — Tests the full FastAPI HTTP routing, dependency injection container, database transaction lifecycle, and response serialization using an in-memory SQLite database (`aiosqlite`). External inference is mocked at the network boundary.
-3. **End-to-End Tests (`tests/e2e/`)** — Simulates realistic multi-step user workflows (provisioning $\rightarrow$ identity validation $\rightarrow$ streaming chat sessions $\rightarrow$ autocomplete $\rightarrow$ teardown) and security error matrices. Unlike the tiers above, these call **real LiteLLM and vLLM** — they are the only place inference is not mocked, and they fail loudly rather than skipping when that stack is unavailable.
+3. **End-to-End Tests (`tests/e2e/`)** — Simulates realistic multi-step user workflows (streaming chat $\rightarrow$ session listing $\rightarrow$ history $\rightarrow$ follow-up turn $\rightarrow$ teardown) and 404/422 error matrices. Unlike the tiers above, these call **real LiteLLM and vLLM** — they are the only place inference is not mocked, and they fail loudly rather than skipping when that stack is unavailable.
 
 ---
 
@@ -37,11 +37,9 @@ tests/
 ├── conftest.py                      # Global fixtures, deterministic UUIDs, & entity models
 ├── unit/                            # Unit test suite (@pytest.mark.unit)
 │   ├── __init__.py
-│   ├── test_auth_service.py         # AuthService provision, key auth, 401/403 errors
 │   ├── test_session_service.py      # SessionService list, detail, deletion, 404s
 │   ├── test_chat_service.py         # ChatService session creation, auto-heal, SSE format
-│   ├── test_autocomplete_service.py # AutocompleteService FIM prompt & /v1/completions call
-│   ├── test_controllers.py          # Auth, Session, Chat, and Autocomplete controllers
+│   ├── test_controllers.py          # Session and Chat controllers
 │   ├── test_mappers.py              # EntityMapper model-to-schema transformations
 │   ├── test_sse.py                  # SSE event serializer utility
 │   ├── test_schemas.py              # Pydantic validation rules and schema constraints
@@ -51,16 +49,14 @@ tests/
 ├── integration/                     # Integration test suite (@pytest.mark.integration)
 │   ├── __init__.py
 │   ├── conftest.py                  # In-memory async SQLite engine & client fixtures
-│   ├── test_auth_routes.py          # /api/v1/auth/provision & /api/v1/auth/me
 │   ├── test_session_routes.py       # /api/v1/sessions CRUD endpoints
 │   ├── test_chat_routes.py          # /api/v1/chat SSE stream & message persistence
-│   ├── test_autocomplete_routes.py  # /api/v1/autocomplete FIM completion endpoint
 │   └── test_health.py               # /health endpoint verification
 └── e2e/                             # End-to-End test suite (@pytest.mark.e2e)
     ├── __init__.py
     ├── conftest.py                  # E2E test client fixture
-    ├── test_user_journey.py         # Complete provision -> chat -> autocomplete -> cleanup flow
-    └── test_error_flows.py          # Unauthorized & 404 error matrices
+    ├── test_user_journey.py         # chat -> sessions -> history -> follow-up -> cleanup
+    └── test_error_flows.py          # 404 and 422 validation matrices
 ```
 
 ---
@@ -71,13 +67,13 @@ tests/
 
 | Suite | Marker | Focus Area | Test Count |
 |-------|--------|------------|:----------:|
-| **Unit** | `unit` | Business logic, edge cases, error branching, schema parsing | **69** |
-| **Integration** | `integration` | API routes, status codes, dependency injection, DB queries, pagination | **22** |
-| **E2E** | `e2e` | Multi-step client journeys, auth protection matrix | **7** |
-| **Total** | | | **98 (100% pass rate)** |
+| **Unit** | `unit` | Business logic, edge cases, error branching, schema parsing | **45** |
+| **Integration** | `integration` | API routes, status codes, dependency injection, DB queries, pagination | **13** |
+| **E2E** | `e2e` | Multi-step session journeys, 404/422 matrix | **6** |
+| **Total** | | | **64 (100% pass rate)** |
 
-> The **7 e2e tests require the live `vllm-test`/`litellm-test` stack** and fail
-> fast if it is unreachable — see §5. The 91 unit + integration tests run
+> The **6 e2e tests require the live `vllm-test`/`litellm-test` stack** and fail
+> fast if it is unreachable — see §5. The 58 unit + integration tests run
 > standalone with no external services and are the source of the matrix below.
 
 ### Coverage Matrix
@@ -86,35 +82,26 @@ tests/
 Name                                                 Stmts   Miss  Cover
 ------------------------------------------------------------------------
 src/config/settings.py                                  35      0   100%
-src/controller/auth_controller.py                       10      0   100%
-src/controller/autocomplete_controller.py                8      0   100%
-src/controller/chat_controller.py                       10      0   100%
-src/controller/session_controller.py                    13      0   100%
+src/controller/chat_controller.py                        9      0   100%
+src/controller/session_controller.py                    12      0   100%
 src/db/connection.py                                     7      0   100%
-src/db/interfaces/repositories.py                        5      0   100%
+src/db/interfaces/repositories.py                        4      0   100%
 src/db/repositories/session_repository.py               47      0   100%
-src/db/repositories/user_repository.py                  17      0   100%
-src/di/container.py                                     45      0   100%
+src/di/container.py                                     25      0   100%
 src/main.py                                             30      0   100%
-src/models/entities.py                                  30      0   100%
-src/routes/api.py                                       10      0   100%
-src/routes/auth_routes.py                               12      0   100%
-src/routes/autocomplete_routes.py                        9      0   100%
-src/routes/chat_routes.py                                9      0   100%
-src/routes/session_routes.py                            16      0   100%
-src/schemas/autocomplete.py                              6      0   100%
+src/models/entities.py                                  21      0   100%
+src/routes/api.py                                        6      0   100%
+src/routes/chat_routes.py                                8      0   100%
+src/routes/session_routes.py                            15      0   100%
 src/schemas/chat.py                                      7      0   100%
 src/schemas/session.py                                  10      0   100%
-src/schemas/user.py                                      4      0   100%
-src/services/implementations/auth_service.py            30      0   100%
-src/services/implementations/autocomplete_service.py    29      0   100%
-src/services/implementations/chat_service.py            51      0   100%
+src/services/implementations/chat_service.py            50      0   100%
 src/services/implementations/session_service.py         23      0   100%
-src/services/interfaces/services.py                     12      0   100%
-src/utils/mappers.py                                    15      0   100%
+src/services/interfaces/services.py                      7      0   100%
+src/utils/mappers.py                                    11      0   100%
 src/utils/sse.py                                         6      0   100%
 ------------------------------------------------------------------------
-TOTAL                                                  508      0   100%
+TOTAL                                                  335      0   100%
 ```
 
 ---
@@ -139,7 +126,7 @@ pip install -r requirements.txt
 ### Running Test Commands
 
 ```bash
-# Run everything that works without external services (91 tests, 100% coverage)
+# Run everything that works without external services (58 tests, 100% coverage)
 pytest tests/unit tests/integration -v
 
 # Run by tier using pytest markers
@@ -202,7 +189,7 @@ An isolated, reproducible Docker Compose configuration is provided in [`docker-c
   healthcheck allows a 300s `start_period` for CPU model load.
 - **`litellm-test`**: LiteLLM proxy fronting `vllm-test`, configured by
   [`litellm/config.test.yaml`](litellm/config.test.yaml). This is what issues the
-  real virtual API keys that e2e provisioning asserts against.
+  the OpenAI-compatible endpoint the backend and Continue.dev both call.
 - **`test-runner`**: Runs `entrypoint.sh` (which executes `alembic upgrade head` migrations on the test database) followed by pytest.
 
 Healthchecks are chained `vllm-test` → `litellm-test` → `test-runner`, so pytest
@@ -229,9 +216,7 @@ Defined in [`tests/conftest.py`](file:///c:/Users/tamir/Desktop/ai-code-platform
 - **`mock_message_entity`**: Pre-instantiated `MessageEntity` linked to the test session.
 
 Integration tests in [`tests/integration/conftest.py`](file:///c:/Users/tamir/Desktop/ai-code-platform/tests/integration/conftest.py) provide:
-- **`client`**: Unauthenticated `httpx.AsyncClient` wired to the FastAPI application with in-memory SQLite database.
-- **`authenticated_client`**: `httpx.AsyncClient` with the `get_authenticated_user` dependency overridden to automatically authenticate requests.
-- **`seeded_user`**: Inserts a test user into the in-memory database before the test runs.
+- **`client`**: `httpx.AsyncClient` wired to the FastAPI application with an in-memory SQLite database. There is no auth layer, so this is the only client fixture.
 
 ---
 
@@ -240,7 +225,7 @@ Integration tests in [`tests/integration/conftest.py`](file:///c:/Users/tamir/De
 When adding new features, follow these conventions:
 
 1. **New Service Method**: Add unit tests in `tests/unit/test_<name>_service.py`. Mock all repository and external client interactions.
-2. **New Endpoint**: Add integration tests in `tests/integration/test_<name>_routes.py`. Use `authenticated_client` for protected endpoints and test both 200/201 happy paths and 4xx error cases.
+2. **New Endpoint**: Add integration tests in `tests/integration/test_<name>_routes.py`. Use `client` and test both happy paths and 4xx error cases.
 3. **New User Flow**: Add an end-to-end scenario in `tests/e2e/test_user_journey.py`.
 4. **Markers**: Ensure every test file defines its marker at module level:
    ```python

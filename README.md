@@ -9,7 +9,6 @@ A fully self-hosted, GPU-accelerated AI coding assistant platform powered by **v
 - **IDE & Continue.dev Native Support** — Direct OpenAI-compatible endpoint at `/v1` backed by LiteLLM virtual keys.
 - **FastAPI Code Assistant & Session Management** — Full conversation history, multi-session management, and task tracking at `/api/v1`.
 - **On-Prem GPU Inference** — High-performance vLLM engine serving Qwen2.5-Coder (or any Hugging Face model) via NVIDIA Container Toolkit.
-- **Key & Quota Management** — Provision scoped API keys with RPM/TPM limits and usage quotas.
 - **Alembic Database Migrations** — Managed relational database lifecycle for PostgreSQL with asyncpg.
 - **Full Observability Suite** — Built-in Prometheus metrics and pre-configured Grafana dashboards at `/grafana/`.
 
@@ -23,7 +22,7 @@ A fully self-hosted, GPU-accelerated AI coding assistant platform powered by **v
 | **Inference Engine** | vLLM (OpenAI-compatible) | High-throughput GPU inference with PagedAttention |
 | **LLM Gateway** | LiteLLM | Key management, rate limiting, model routing, caching |
 | **Backend API** | FastAPI + Uvicorn | Session orchestration, chat history, code completion |
-| **Database** | PostgreSQL 16 + asyncpg | Persistent data store for users, sessions, messages, and tasks |
+| **Database** | PostgreSQL 16 + asyncpg | Persistent data store for chat sessions and messages |
 | **Database Migrations** | Alembic | Version-controlled schema migrations |
 | **Cache & Broker** | Redis Stack | Task broker, result backend, and LLM cache |
 | **Monitoring** | Prometheus + Grafana | Metrics collection and observability dashboards |
@@ -64,7 +63,7 @@ All external traffic flows through Nginx on ports **80 (HTTP redirect)** and **4
 
 | Path | Destination | Purpose |
 |------|-------------|---------|
-| `https://<host>/api/v1/*` | FastAPI (`backend:8080`) | Chat streaming, session history, batch review tasks, auth |
+| `https://<host>/api/v1/*` | FastAPI (`backend:8080`) | Chat streaming and session history |
 | `https://<host>/v1/*` | LiteLLM (`litellm:4000`) | OpenAI-compatible endpoint for IDEs (Continue.dev, Cursor) |
 | `https://<host>/key/*` | LiteLLM (`litellm:4000`) | Key generation and usage administration |
 | `https://<host>/grafana/` | Grafana (`grafana:3000`) | Monitoring dashboards and alerts |
@@ -111,61 +110,48 @@ docker compose -f docker-compose.dev.yaml logs -f vllm
 
 ---
 
-## Provisioning Keys & Connecting IDEs
+## Connecting Continue.dev
 
-### 1. Provision a User & API Key
+The platform API needs no credentials — it is single-user and unauthenticated.
+Autocomplete is **not** served by the platform: Continue.dev talks to LiteLLM
+directly through the gateway.
+
+```
+Continue.dev ──► https://localhost/v1 ──► nginx ──► litellm ──► vLLM
+```
+
+### 1. Copy the example config
+
 ```bash
-curl -k -X POST https://localhost/api/v1/auth/provision \
-  -H "Content-Type: application/json" \
-  -d '{"username": "developer-1"}'
-```
-*Output:*
-```json
-{
-  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "username": "developer-1",
-  "api_key": "sk-your-virtual-key"
-}
+cp continue/config.example.yaml ~/.continue/config.yaml
 ```
 
-### 2. Configure Continue.dev (`~/.continue/config.json`)
-Connect your IDE directly to your on-prem platform:
-```json
-{
-  "models": [
-    {
-      "title": "On-Prem Qwen Coder",
-      "provider": "openai",
-      "model": "qwen-coder",
-      "apiBase": "https://localhost/v1",
-      "apiKey": "sk-your-virtual-key"
-    }
-  ],
-  "tabAutocompleteModel": {
-    "title": "On-Prem Autocomplete",
-    "provider": "openai",
-    "model": "qwen-coder",
-    "apiBase": "https://localhost/v1",
-    "apiKey": "sk-your-virtual-key"
-  }
-}
-```
+Replace `<LITELLM_MASTER_KEY>` with the value from your `.env.dev`. That single
+key authenticates chat, edit, apply, and inline autocomplete — it is LiteLLM's
+master key, not a platform credential.
 
-### 3. Test Platform Chat Endpoint
+The example declares `qwen-coder` twice on purpose: once for chat/edit/apply,
+and once for autocomplete with the Qwen fill-in-the-middle stop tokens set, so
+completions terminate at the end of the hole being filled instead of running on
+until the token limit.
+
+### 2. Test the platform chat endpoint
+
 ```bash
-curl -k -X POST https://localhost/api/v1/chat \
-  -H "X-API-Key: sk-your-virtual-key" \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Write a concurrent worker pool in Go"}'
+curl -k -X POST https://localhost/api/v1/chat   -H "Content-Type: application/json"   -d '{"message": "Write a concurrent worker pool in Go"}'
 ```
 
----
+### 3. Test the LiteLLM passthrough Continue.dev uses
+
+```bash
+curl -k https://localhost/v1/chat/completions   -H "Authorization: Bearer $LITELLM_MASTER_KEY"   -H "Content-Type: application/json"   -d '{"model": "qwen-coder", "messages": [{"role": "user", "content": "hi"}]}'
+```
 
 ## Service URLs (via Nginx Gateway)
 
 | Component | URL | Auth Required |
 |-----------|-----|---------------|
-| **FastAPI REST API** | `https://localhost/api/v1` | `X-API-Key` header |
+| **FastAPI REST API** | `https://localhost/api/v1` | None (single-user) |
 | **OpenAI Compatible API** | `https://localhost/v1` | `Bearer <key>` header |
 | **Interactive Docs (Swagger)** | `https://localhost/docs` | None |
 | **Interactive Docs (ReDoc)** | `https://localhost/redoc` | None |

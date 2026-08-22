@@ -86,62 +86,7 @@ html, body {
 }
 
 /* API Key Input */
-.api-key-section {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-}
 
-.api-key-section label {
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 8px;
-}
-
-.api-key-input-wrap {
-  position: relative;
-}
-
-.api-key-input-wrap input {
-  width: 100%;
-  padding: 8px 12px;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  transition: border-color 0.2s;
-}
-
-.api-key-input-wrap input:focus {
-  outline: none;
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--accent-glow);
-}
-
-.api-key-status {
-  margin-top: 6px;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.api-key-status .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-muted);
-}
-
-.api-key-status.connected .dot { background: var(--success); }
-.api-key-status.connected { color: var(--success); }
-.api-key-status.error .dot { background: var(--error); }
-.api-key-status.error { color: var(--error); }
 
 /* New Chat Button */
 .new-chat-btn {
@@ -515,17 +460,6 @@ html, body {
       <span class="env-badge">Dev Playground</span>
     </div>
 
-    <div class="api-key-section">
-      <label>API Key</label>
-      <div class="api-key-input-wrap">
-        <input type="password" id="apiKey" placeholder="sk-..." spellcheck="false" autocomplete="off">
-      </div>
-      <div class="api-key-status" id="keyStatus">
-        <span class="dot"></span>
-        <span>Enter your API key</span>
-      </div>
-    </div>
-
     <button class="new-chat-btn" id="newChatBtn" onclick="newChat()">
       <span>＋</span> New Chat
     </button>
@@ -571,8 +505,6 @@ let isStreaming = false;
 let sessions = [];
 
 // ── DOM Refs ──
-const apiKeyInput     = document.getElementById('apiKey');
-const keyStatus       = document.getElementById('keyStatus');
 const sessionList     = document.getElementById('sessionList');
 const messagesDiv     = document.getElementById('messages');
 const emptyState      = document.getElementById('emptyState');
@@ -582,52 +514,10 @@ const chatTitle       = document.getElementById('chatTitle');
 const streamIndicator = document.getElementById('streamIndicator');
 const toast           = document.getElementById('toast');
 
-// ── API Key ──
-apiKeyInput.addEventListener('input', () => {
-  const key = apiKeyInput.value.trim();
-  localStorage.setItem('ai_api_key', key);
-  sendBtn.disabled = !key;
-  if (key.length > 5) {
-    verifyKey(key);
-  } else {
-    keyStatus.className = 'api-key-status';
-    keyStatus.innerHTML = '<span class="dot"></span><span>Enter your API key</span>';
-  }
-});
-
-// Load saved key
-const savedKey = localStorage.getItem('ai_api_key');
-if (savedKey) {
-  apiKeyInput.value = savedKey;
-  sendBtn.disabled = false;
-  verifyKey(savedKey);
-}
-
-async function verifyKey(key) {
-  try {
-    const res = await fetch(`${BASE}/api/v1/auth/me`, {
-      headers: { 'X-API-Key': key }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      keyStatus.className = 'api-key-status connected';
-      keyStatus.innerHTML = `<span class="dot"></span><span>Connected as <b>${data.username}</b></span>`;
-      loadSessions();
-    } else {
-      keyStatus.className = 'api-key-status error';
-      keyStatus.innerHTML = '<span class="dot"></span><span>Invalid key</span>';
-    }
-  } catch (e) {
-    keyStatus.className = 'api-key-status error';
-    keyStatus.innerHTML = '<span class="dot"></span><span>Cannot reach API</span>';
-  }
-}
-
 // ── Sessions ──
 async function loadSessions() {
   try {
     const res = await fetch(`${BASE}/api/v1/sessions`, {
-      headers: { 'X-API-Key': apiKeyInput.value.trim() }
     });
     if (res.ok) {
       sessions = await res.json();
@@ -651,7 +541,6 @@ async function selectSession(id) {
   renderSessions();
   try {
     const res = await fetch(`${BASE}/api/v1/sessions/${id}`, {
-      headers: { 'X-API-Key': apiKeyInput.value.trim() }
     });
     if (res.ok) {
       const data = await res.json();
@@ -670,7 +559,6 @@ async function deleteSession(id) {
   try {
     await fetch(`${BASE}/api/v1/sessions/${id}`, {
       method: 'DELETE',
-      headers: { 'X-API-Key': apiKeyInput.value.trim() }
     });
     if (id === currentSessionId) {
       currentSessionId = null;
@@ -699,7 +587,6 @@ function newChat() {
 // ── Chat ──
 async function sendMessage() {
   const message = chatInput.value.trim();
-  const key = apiKeyInput.value.trim();
   if (!message || !key || isStreaming) return;
 
   // Clear empty state & show user message
@@ -725,7 +612,6 @@ async function sendMessage() {
     const res = await fetch(`${BASE}/api/v1/chat`, {
       method: 'POST',
       headers: {
-        'X-API-Key': key,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -785,7 +671,7 @@ async function sendMessage() {
     showToast(e.message, 'error');
   } finally {
     isStreaming = false;
-    sendBtn.disabled = !apiKeyInput.value.trim();
+    sendBtn.disabled = false;
     streamIndicator.className = 'stream-indicator';
     streamIndicator.querySelector('span:last-child').textContent = 'Ready';
     loadSessions();
@@ -867,6 +753,12 @@ function autoResize(el) {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 200) + 'px';
 }
+
+// ── Startup ──
+// There is no credential step: this is a single-user platform, so the session
+// list loads immediately and the composer is usable straight away.
+sendBtn.disabled = false;
+loadSessions();
 </script>
 </body>
 </html>

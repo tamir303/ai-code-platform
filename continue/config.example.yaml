@@ -1,0 +1,56 @@
+# =============================================================================
+# Continue.dev configuration — AI Code Platform
+#
+# Autocomplete is provided by Continue.dev talking to LiteLLM directly. The
+# platform's own API is not involved: nginx proxies /v1/* straight through to
+# the LiteLLM proxy, which fronts vLLM.
+#
+#   Continue.dev ──► http://localhost/v1 ──► nginx ──► litellm ──► vllm
+#
+# Install: copy to ~/.continue/config.yaml (Continue >= 1.0) and replace
+# <LITELLM_MASTER_KEY> with the value of LITELLM_MASTER_KEY from your .env.dev.
+# =============================================================================
+
+name: ai-code-platform
+version: 0.0.1
+schema: v1
+
+models:
+  # Chat / edit / apply — the instruct model served by vLLM.
+  - name: qwen-coder
+    provider: openai
+    model: qwen-coder
+    apiBase: http://localhost/v1
+    apiKey: <LITELLM_MASTER_KEY>
+    roles:
+      - chat
+      - edit
+      - apply
+
+  # Inline autocomplete. Uses the same served model through the raw completions
+  # endpoint so the fill-in-the-middle template is applied by the model, not by
+  # a chat template.
+  - name: qwen-coder-autocomplete
+    provider: openai
+    model: qwen-coder
+    apiBase: http://localhost/v1
+    apiKey: <LITELLM_MASTER_KEY>
+    roles:
+      - autocomplete
+    completionOptions:
+      maxTokens: 128
+      temperature: 0.1
+      stop:
+        - "<|fim_prefix|>"
+        - "<|fim_suffix|>"
+        - "<|fim_middle|>"
+        - "<|fim_pad|>"
+        - "<|endoftext|>"
+        - "<|repo_name|>"
+        - "<|file_sep|>"
+
+context:
+  - provider: file
+  - provider: code
+  - provider: diff
+  - provider: terminal
